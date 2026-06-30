@@ -54,7 +54,7 @@ function updateMarker(x, y) {
 }
 
 img.addEventListener("click", function(event){
-
+    console.log("clicked", currentClick);
     const rect = img.getBoundingClientRect();
 
     const scaleX = img.naturalWidth / rect.width;
@@ -79,26 +79,44 @@ document.getElementById("save").onclick = async function(){
         headers:{
             "Content-Type":"application/json"
         },
-        body:JSON.stringify(currentClick)
+        body: JSON.stringify({
+            ...currentClick,
+            index: currentIndex
+        })
     });
 
     const result = await response.json();
     document.getElementById("status").textContent =
         "Saved!";
+    if (result.next_url) {
+        window.location.href = result.next_url;
+    }
 };
 
-window.onload = async function(){
+window.onload = async function() {
 
-    const response =
-        await fetch("/load/" + cluster);
+    const response = await fetch("/load/" + cluster);
+    const result = await response.json();
 
-    const result =
-        await response.json();
-
-    if(result.exists){
+    if (result.exists) {
+        console.log("calling updateMarker", result.x, result.y);
         updateMarker(result.x, result.y);
+
         document.getElementById("status").textContent =
             "Existing annotation loaded.";
     }
-
 };
+
+document.addEventListener("keydown", function(event) {
+
+    if (event.key === "ArrowLeft") {
+        if (currentIndex > 0)
+            window.location = "/" + (currentIndex - 1);
+    }
+
+    if (event.key === "ArrowRight") {
+        if (currentIndex < total - 1)
+            window.location = "/" + (currentIndex + 1);
+    }
+
+});

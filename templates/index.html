@@ -21,17 +21,6 @@ z = {{ galaxy.redshift }}
 
 </p>
 
-<div id="image-container">
-
-    <img
-        id="galaxy"
-        src="/images/{{ galaxy.image }}"
-        draggable="false">
-
-    <div id="marker"></div>
-
-</div>
-
 <div id="info">
 
     X: <span id="x">-</span><br>
@@ -51,15 +40,41 @@ const ra0 = {{ galaxy.ra }};
 const dec0 = {{ galaxy.dec }};
 const pixscale = {{ galaxy.pixscale }};
 
+const currentIndex = {{ index }};
+const total = {{ total }};
+
 </script>
 
 <button id="save">Save</button>
 
 <span id="status"></span>
 
-<button id="previous">Previous</button>
+<div class="navigation">
+    {% if index > 0 %}
+    <a href="{{ url_for('index', index=index-1) }}">
+        ← Previous
+    </a>
+    {% endif %}
 
-<button id="next">Next</button>
+    <span>{{ index + 1 }} / {{ total }}</span>
+
+    {% if index < total-1 %}
+    <a href="{{ url_for('index', index=index+1) }}">
+        Next →
+    </a>
+    {% endif %}
+</div>
+
+<div id="image-container">
+
+    <img
+        id="galaxy"
+        src="/images/{{ galaxy.image }}"
+        draggable="false">
+
+    <div id="marker"></div>
+
+</div>
 
 <script src="{{ url_for('static', filename='script.js') }}"></script>
 

@@ -10,33 +10,32 @@
 
 <body>
 
-<h2>BCG Picker: {{ galaxy.cluster }}</h2>
-
-<div class="layout">
+<div class="container">
 
     <!-- LEFT: IMAGE -->
     <div class="left-panel">
-
-        <div id="image-container">
+        <div id="image-wrapper">
             <img id="galaxy"
-                 src="/images/{{ galaxy.image }}"
-                 draggable="false">
-
+                src="/images/{{ galaxy.image }}"
+                draggable="false">
             <div id="marker"></div>
         </div>
-
     </div>
 
-    <!-- RIGHT: CONTROLS -->
+    <!-- RIGHT: CONTROL PANEL -->
     <div class="right-panel">
+        <h2>{{ galaxy.cluster }}</h2>
 
         <p>
             Galaxy {{ index+1 }} / {{ total }} <br>
             z = {{ galaxy.redshift }}
         </p>
 
+        <button id="zoom-reset">Zoom 1</button>
+
         <div id="progress">
-            Progress: <span id="progress-text">Loading...</span>
+            <progress id="progress-bar" value="0" max="100"></progress>
+            <div id="progress-text">Loading...</div>
         </div>
 
         <div id="info">
@@ -60,6 +59,28 @@
             <a href="{{ url_for('index', index=index+1) }}">Next →</a>
             {% endif %}
         </div>
+
+        <div id="shortcuts">
+            <h3>Controls</h3>
+
+            <ul>
+                <li><b>Click image</b> → Create marker</li>
+                <li><b>S</b> → Save Coordinates to file</li>
+                <li><b>N</b> → Skip/Unsure</li>
+                <li><b>← / →</b> → Previous / Next cluster</li>
+                <li><b>1</b> → Reset Zoom</li>
+                <li><b>Mouse wheel</b> → Zoom in/out (need to reset zoom before marking)</li>
+            </ul>
+        </div>
+
+        <div id="upload">
+            <h3>Load Custom Catalog</h3>
+            <input type="file" id="catalog-file" accept=".csv">
+            <button id="upload-btn">Upload</button>
+            <div id="upload-status"></div>
+        </div>
+
+        <button id="reset-catalog">Use Full Catalog</button>
 
     </div>
 

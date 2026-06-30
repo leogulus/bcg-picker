@@ -1,20 +1,54 @@
 from flask import Flask, render_template, send_from_directory
 from flask import request, jsonify
 from flask import redirect, url_for
+from flask import request
+import tempfile
 
 import csv
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-catalog = []
 RESULTS_FILE = os.path.join(BASE_DIR, "data", "results.csv")
 
-with open(os.path.join(BASE_DIR, "data", "catalog.csv")) as f:
-    reader = csv.DictReader(f)
-    catalog = list(reader)
+catalog = []
+def load_catalog(path):
+    global catalog
+    with open(path) as f:
+        catalog = list(csv.DictReader(f))
+
+load_catalog(os.path.join(BASE_DIR, "data", "catalog.csv"))
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
+
+@app.route("/upload_catalog", methods=["POST"])
+def upload_catalog():
+
+    file = request.files["file"]
+
+    if not file:
+        return jsonify({"status": "error", "message": "No file uploaded"})
+
+    # save temporarily
+    temp_path = os.path.join(BASE_DIR, "data", "uploaded_catalog.csv")
+    file.save(temp_path)
+
+    # reload catalog
+    load_catalog(temp_path)
+
+    return jsonify({
+        "status": "ok",
+        "total": len(catalog)
+    })
+
+@app.route("/reset_catalog", methods=["POST"])
+def reset_catalog():
+
+    load_catalog(os.path.join(BASE_DIR, "data", "catalog.csv"))
+
+    return jsonify({
+        "status": "ok",
+        "total": len(catalog)
+    })
 
 @app.route("/")
 def home():

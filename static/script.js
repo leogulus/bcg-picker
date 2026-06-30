@@ -60,8 +60,17 @@ async function loadProgress() {
 
     console.log("progress:", data);  // IMPORTANT DEBUG
 
+    const percent = (data.done / data.total) * 100;
+
+    document.getElementById("progress-bar").value = percent;
     document.getElementById("progress-text").textContent =
         `${data.done} / ${data.total} done, ${data.skipped} skipped, ${data.remaining} remaining`;
+}
+
+function resetZoom() {
+    zoom = 1;
+    const wrapper = document.getElementById("image-wrapper");
+    wrapper.style.transform = "scale(1)";
 }
 
 img.addEventListener("click", function(event){
@@ -159,6 +168,64 @@ document.addEventListener("keydown", function(event) {
             window.location = "/" + (currentIndex + 1);
     }
 
+    if (event.key === "1") {
+        resetZoom();
+    }
+
 });
 
+let zoom = 1;
 
+const wrapper = document.getElementById("image-wrapper");
+
+window.addEventListener("wheel", function(event) {
+
+    if (event.deltaY < 0) {
+        zoom *= 1.1;
+    } else {
+        zoom /= 1.1;
+    }
+
+    zoom = Math.min(Math.max(zoom, 0.5), 5);
+
+    wrapper.style.transform = `scale(${zoom})`;
+});
+
+document.getElementById("zoom-reset").onclick = resetZoom;
+
+document.getElementById("upload-btn").onclick = async function() {
+
+    const fileInput = document.getElementById("catalog-file");
+
+    if (!fileInput.files.length) {
+        alert("Please select a CSV file");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+
+    const response = await fetch("/upload_catalog", {
+        method: "POST",
+        body: formData
+    });
+
+    const result = await response.json();
+
+    document.getElementById("upload-status").textContent =
+        `Loaded ${result.total} objects`;
+};
+
+document.getElementById("reset-catalog").onclick = async function() {
+
+    const response = await fetch("/reset_catalog", {
+        method: "POST"
+    });
+
+    const result = await response.json();
+
+    document.getElementById("upload-status").textContent =
+        `Loaded full catalog (${result.total} objects).`;
+
+    window.location.href = "/0";
+};

@@ -10,29 +10,62 @@
 
 <body>
 
-<h2>BCG Picker</h2>
+<h2>BCG Picker: {{ galaxy.cluster }}</h2>
 
-<h2>{{ galaxy.cluster }}</h2>
+<div class="layout">
 
-<p>
+    <!-- LEFT: IMAGE -->
+    <div class="left-panel">
 
-Galaxy {{ index+1 }} / {{ total }} <br>
-z = {{ galaxy.redshift }}
+        <div id="image-container">
+            <img id="galaxy"
+                 src="/images/{{ galaxy.image }}"
+                 draggable="false">
 
-</p>
+            <div id="marker"></div>
+        </div>
 
-<div id="info">
+    </div>
 
-    X: <span id="x">-</span><br>
-    Y: <span id="y">-</span><br>
+    <!-- RIGHT: CONTROLS -->
+    <div class="right-panel">
 
-    RA: <span id="ra">-</span><br>
-    Dec: <span id="dec">-</span>
+        <p>
+            Galaxy {{ index+1 }} / {{ total }} <br>
+            z = {{ galaxy.redshift }}
+        </p>
+
+        <div id="progress">
+            Progress: <span id="progress-text">Loading...</span>
+        </div>
+
+        <div id="info">
+            X: <span id="x">-</span><br>
+            Y: <span id="y">-</span><br>
+            RA: <span id="ra">-</span><br>
+            Dec: <span id="dec">-</span>
+        </div>
+
+        <button id="save">Save</button>
+        <span id="status"></span>
+
+        <div class="navigation">
+            {% if index > 0 %}
+            <a href="{{ url_for('index', index=index-1) }}">← Previous</a>
+            {% endif %}
+
+            <span>{{ index + 1 }} / {{ total }}</span>
+
+            {% if index < total-1 %}
+            <a href="{{ url_for('index', index=index+1) }}">Next →</a>
+            {% endif %}
+        </div>
+
+    </div>
 
 </div>
 
 <script>
-
 const cluster = "{{ galaxy.cluster }}";
 const image = "{{ galaxy.image }}";
 
@@ -42,39 +75,7 @@ const pixscale = {{ galaxy.pixscale }};
 
 const currentIndex = {{ index }};
 const total = {{ total }};
-
 </script>
-
-<button id="save">Save</button>
-
-<span id="status"></span>
-
-<div class="navigation">
-    {% if index > 0 %}
-    <a href="{{ url_for('index', index=index-1) }}">
-        ← Previous
-    </a>
-    {% endif %}
-
-    <span>{{ index + 1 }} / {{ total }}</span>
-
-    {% if index < total-1 %}
-    <a href="{{ url_for('index', index=index+1) }}">
-        Next →
-    </a>
-    {% endif %}
-</div>
-
-<div id="image-container">
-
-    <img
-        id="galaxy"
-        src="/images/{{ galaxy.image }}"
-        draggable="false">
-
-    <div id="marker"></div>
-
-</div>
 
 <script src="{{ url_for('static', filename='script.js') }}"></script>
 

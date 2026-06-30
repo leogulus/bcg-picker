@@ -53,6 +53,15 @@ function updateMarker(x, y) {
     };
 }
 
+async function loadProgress() {
+
+    const response = await fetch("/progress");
+    const data = await response.json();
+
+    document.getElementById("progress-text").textContent =
+        `${data.done} / ${data.total} done, ${data.skipped} skipped, ${data.remaining} remaining`;
+}
+
 img.addEventListener("click", function(event){
     console.log("clicked", currentClick);
     const rect = img.getBoundingClientRect();
@@ -86,11 +95,13 @@ document.getElementById("save").onclick = async function(){
     });
 
     const result = await response.json();
-    document.getElementById("status").textContent =
-        "Saved!";
+    document.getElementById("status").textContent = "Saved!";
     if (result.next_url) {
-        window.location.href = result.next_url;
+        setTimeout(() => {
+            window.location.href = result.next_url;
+        }, 300);
     }
+    await loadProgress();
 };
 
 window.onload = async function() {
@@ -105,9 +116,30 @@ window.onload = async function() {
         document.getElementById("status").textContent =
             "Existing annotation loaded.";
     }
+    
+    await loadProgress();
 };
 
 document.addEventListener("keydown", function(event) {
+    
+    if (event.key === "s") {
+        document.getElementById("save").click();
+    }
+
+    if (event.key === "n") {
+
+        fetch("/save", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                cluster: cluster,
+                image: image,
+                skipped: true
+            })
+        }).then(() => {
+            window.location.href = "/" + (currentIndex + 1);
+        });
+    }
 
     if (event.key === "ArrowLeft") {
         if (currentIndex > 0)
@@ -120,3 +152,5 @@ document.addEventListener("keydown", function(event) {
     }
 
 });
+
+

@@ -61,11 +61,12 @@ def save():
     # Replace existing cluster if found
     for row in rows:
         if row["cluster"] == data["cluster"]:
-            row["image"] = data["image"]
-            row["x"] = data["x"]
-            row["y"] = data["y"]
-            row["ra"] = data["ra"]
-            row["dec"] = data["dec"]
+            row["image"] = data.get("image", row["image"])
+            row["x"] = data.get("x", "")
+            row["y"] = data.get("y", "")
+            row["ra"] = data.get("ra", "")
+            row["dec"] = data.get("dec", "")
+            row["skipped"] = str(data.get("skipped", False))
 
             updated = True
             break
@@ -74,17 +75,18 @@ def save():
     if not updated:
         rows.append({
             "cluster": data["cluster"],
-            "image": data["image"],
-            "x": data["x"],
-            "y": data["y"],
-            "ra": data["ra"],
-            "dec": data["dec"],
+            "image": data.get("image", ""),
+            "x": data.get("x", ""),
+            "y": data.get("y", ""),
+            "ra": data.get("ra", ""),
+            "dec": data.get("dec", ""),
+            "skipped": str(data.get("skipped", False)),
         })
 
     # Rewrite the entire CSV
     with open(RESULTS_FILE, "w", newline="") as f:
 
-        writer = csv.DictWriter(f,fieldnames=["cluster", "image", "x", "y", "ra", "dec"])
+        writer = csv.DictWriter(f, fieldnames=["cluster", "image", "x", "y", "ra", "dec", "skipped"])
         writer.writeheader()
         writer.writerows(rows)
 
@@ -120,6 +122,28 @@ def load(cluster):
 
     return jsonify({"exists": False})
 
+@app.route("/progress")
+def progress():
+
+    total = len(catalog)
+    done = 0
+    skipped = 0
+
+    if os.path.exists(RESULTS_FILE):
+        with open(RESULTS_FILE) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get("skipped", "False") == "True":
+                    skipped += 1
+                elif row.get("x"):
+                    done += 1
+
+    return jsonify({
+        "total": total,
+        "done": done,
+        "skipped": skipped,
+        "remaining": total - done - skipped
+    })
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -15,10 +15,10 @@ A lightweight web application for interactively identifying the Brightest Cluste
 - Python 3
 - Flask
 
-Install:
+Install flask:  
 
 ```bash
-pip install flask
+conda install flask
 ```
 
 Run:
@@ -32,3 +32,4 @@ Open:
 ```
 http://127.0.0.1:5000
 ```
+

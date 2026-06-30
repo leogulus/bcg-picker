@@ -5,14 +5,16 @@ from flask import redirect, url_for
 import csv
 import os
 
-catalog = []
-RESULTS_FILE = "data/results.csv"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-with open("data/catalog.csv") as f:
+catalog = []
+RESULTS_FILE = os.path.join(BASE_DIR, "data", "results.csv")
+
+with open(os.path.join(BASE_DIR, "data", "catalog.csv")) as f:
     reader = csv.DictReader(f)
     catalog = list(reader)
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static", static_url_path="/static")
 
 @app.route("/")
 def home():
@@ -43,7 +45,7 @@ def cluster(cluster):
 
 @app.route("/images/<filename>")
 def images(filename):
-    return send_from_directory("images", filename)
+    return send_from_directory(os.path.join(BASE_DIR, "images"), filename)
 
 @app.route("/save", methods=["POST"])
 def save():
@@ -104,20 +106,30 @@ def save():
 
 @app.route("/load/<cluster>")
 def load(cluster):
-    print("LOAD HIT:", cluster)
+
     if not os.path.exists(RESULTS_FILE):
         return jsonify({"exists": False})
 
     with open(RESULTS_FILE) as f:
         reader = csv.DictReader(f)
+
         for row in reader:
             if row["cluster"] == cluster:
+
+                # check skipped first
+                if row.get("skipped", "False") == "True":
+                    return jsonify({
+                        "exists": True,
+                        "skipped": True
+                    })
+
                 return jsonify({
                     "exists": True,
-                    "x": float(row["x"]),
-                    "y": float(row["y"]),
-                    "ra": float(row["ra"]),
-                    "dec": float(row["dec"])
+                    "skipped": False,
+                    "x": float(row["x"]) if row["x"] else None,
+                    "y": float(row["y"]) if row["y"] else None,
+                    "ra": float(row["ra"]) if row["ra"] else None,
+                    "dec": float(row["dec"]) if row["dec"] else None,
                 })
 
     return jsonify({"exists": False})

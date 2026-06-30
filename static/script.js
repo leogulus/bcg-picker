@@ -58,6 +58,8 @@ async function loadProgress() {
     const response = await fetch("/progress");
     const data = await response.json();
 
+    console.log("progress:", data);  // IMPORTANT DEBUG
+
     document.getElementById("progress-text").textContent =
         `${data.done} / ${data.total} done, ${data.skipped} skipped, ${data.remaining} remaining`;
 }
@@ -106,18 +108,24 @@ document.getElementById("save").onclick = async function(){
 
 window.onload = async function() {
 
+    await loadProgress();
+
     const response = await fetch("/load/" + cluster);
     const result = await response.json();
 
-    if (result.exists) {
-        console.log("calling updateMarker", result.x, result.y);
-        updateMarker(result.x, result.y);
+    if (!result.exists) return;
 
+    if (result.skipped) {
+        document.getElementById("status").textContent = "Skipped";
+        return;
+    }
+
+    if (result.x !== undefined && result.y !== undefined) {
+        updateMarker(result.x, result.y);
         document.getElementById("status").textContent =
             "Existing annotation loaded.";
     }
-    
-    await loadProgress();
+
 };
 
 document.addEventListener("keydown", function(event) {

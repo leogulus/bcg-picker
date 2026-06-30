@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>BCG Picker</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<h2>BCG Picker</h2>
+
+<h2>{{ galaxy.cluster }}</h2>
+
+<p>
+
+Galaxy {{ index+1 }} / {{ total }} <br>
+z = {{ galaxy.redshift }}
+
+</p>
+
+<div id="image-container">
+
+    <img
+        id="galaxy"
+        src="/images/{{ galaxy.image }}"
+        draggable="false">
+
+    <div id="marker"></div>
+
+</div>
+
+<div id="info">
+
+    X: <span id="x">-</span><br>
+    Y: <span id="y">-</span><br>
+
+    RA: <span id="ra">-</span><br>
+    Dec: <span id="dec">-</span>
+
+</div>
+
+<script>
+
+const cluster = "{{ galaxy.cluster }}";
+const image = "{{ galaxy.image }}";
+
+const ra0 = {{ galaxy.ra }};
+const dec0 = {{ galaxy.dec }};
+const pixscale = {{ galaxy.pixscale }};
+
+</script>
+
+<button id="save">Save</button>
+
+<span id="status"></span>
+
+<button id="previous">Previous</button>
+
+<button id="next">Next</button>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+
+</html>

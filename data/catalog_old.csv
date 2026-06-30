@@ -1,0 +1,3 @@
+cluster,image,ra,dec,redshift,pixscale
+SPT0001,cluster000.jpg,3.17611983,-32.97124401,0.1,0.262
+SPT0002,cluster001.jpg,12.33456,-41.12345,0.56,0.262

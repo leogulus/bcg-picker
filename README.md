@@ -2,6 +2,10 @@
 
 A lightweight web application for interactively identifying the Brightest Cluster Galaxy (BCG) in Legacy Survey image cutouts.
 
+## Screenshot
+
+![BCG Picker interface](screenshots/bcg-picker.png)
+
 ## Features
 
 - Display PNG cutouts from the Legacy Survey

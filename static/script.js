@@ -2,6 +2,21 @@ let currentClick = null;
 
 const img = document.getElementById("galaxy");
 const marker = document.getElementById("marker");
+const wrapper = document.getElementById("image-wrapper");
+const xValue = document.getElementById("x");
+const yValue = document.getElementById("y");
+const raValue = document.getElementById("ra");
+const decValue = document.getElementById("dec");
+const progressBar = document.getElementById("progress-bar");
+const progressText = document.getElementById("progress-text");
+const statusText = document.getElementById("status");
+const saveButton = document.getElementById("save");
+const downloadResultsButton = document.getElementById("download-results");
+const zoomResetButton = document.getElementById("zoom-reset");
+const uploadButton = document.getElementById("upload-btn");
+const resetCatalogButton = document.getElementById("reset-catalog");
+const uploadStatus = document.getElementById("upload-status");
+const catalogFileInput = document.getElementById("catalog-file");
 
 function pixelToRaDec(x, y, ra0, dec0, pixscale) {
 
@@ -23,25 +38,30 @@ function pixelToRaDec(x, y, ra0, dec0, pixscale) {
     return { ra, dec };
 }
 
-function updateMarker(x, y) {
+function renderMarker() {
+    if (currentClick == null) {
+        marker.style.display = "none";
+        return;
+    }
 
-    const rect = img.getBoundingClientRect();
+    const displayX = (currentClick.x / img.naturalWidth) * img.clientWidth;
+    const displayY = (currentClick.y / img.naturalHeight) * img.clientHeight;
 
-    const scaleX = img.naturalWidth / rect.width;
-    const scaleY = img.naturalHeight / rect.height;
-
-    marker.style.left = (x / scaleX) + "px";
-    marker.style.top = (y / scaleY) + "px";
+    marker.style.left = displayX + "px";
+    marker.style.top = displayY + "px";
     marker.style.display = "block";
+}
+
+function updateMarker(x, y) {
 
     const { ra, dec } =
         pixelToRaDec(x, y, ra0, dec0, pixscale);
 
-    document.getElementById("x").textContent = x.toFixed(1);
-    document.getElementById("y").textContent = y.toFixed(1);
+    xValue.textContent = x.toFixed(1);
+    yValue.textContent = y.toFixed(1);
 
-    document.getElementById("ra").textContent = ra.toFixed(8);
-    document.getElementById("dec").textContent = dec.toFixed(8);
+    raValue.textContent = ra.toFixed(8);
+    decValue.textContent = dec.toFixed(8);
 
     currentClick = {
         cluster,
@@ -51,6 +71,8 @@ function updateMarker(x, y) {
         ra,
         dec
     };
+
+    renderMarker();
 }
 
 async function loadProgress() {
@@ -59,15 +81,15 @@ async function loadProgress() {
 
     const percent = (data.done / data.total) * 100;
 
-    document.getElementById("progress-bar").value = percent;
-    document.getElementById("progress-text").textContent =
+    progressBar.value = percent;
+    progressText.textContent =
         `${data.done} / ${data.total} done, ${data.skipped} skipped, ${data.remaining} remaining`;
 }
 
 function resetZoom() {
     zoom = 1;
-    const wrapper = document.getElementById("image-wrapper");
     wrapper.style.transform = "scale(1)";
+    renderMarker();
 }
 
 img.addEventListener("click", function(event){
@@ -83,7 +105,7 @@ img.addEventListener("click", function(event){
 
 });
 
-document.getElementById("save").onclick = async function(){
+saveButton.onclick = async function(){
     if(currentClick == null){
         alert("Please click on the galaxy first.");
         return;
@@ -106,7 +128,7 @@ document.getElementById("save").onclick = async function(){
             throw new Error(result.message || "Save failed");
         }
 
-        document.getElementById("status").textContent = "Saved!";
+        statusText.textContent = "Saved!";
         if (result.next_url) {
             setTimeout(() => {
                 window.location.href = result.next_url;
@@ -114,8 +136,12 @@ document.getElementById("save").onclick = async function(){
         }
         await loadProgress();
     } catch (error) {
-        document.getElementById("status").textContent = error.message;
+        statusText.textContent = error.message;
     }
+};
+
+downloadResultsButton.onclick = function() {
+    window.location.href = "/download_results";
 };
 
 window.onload = async function() {
@@ -128,14 +154,13 @@ window.onload = async function() {
     if (!result.exists) return;
 
     if (result.skipped) {
-        document.getElementById("status").textContent = "Skipped";
+        statusText.textContent = "Skipped";
         return;
     }
 
     if (result.x !== undefined && result.y !== undefined) {
         updateMarker(result.x, result.y);
-        document.getElementById("status").textContent =
-            "Existing annotation loaded.";
+        statusText.textContent = "Existing annotation loaded.";
     }
 
 };
@@ -143,7 +168,7 @@ window.onload = async function() {
 document.addEventListener("keydown", function(event) {
     
     if (event.key === "s") {
-        document.getElementById("save").click();
+        saveButton.click();
     }
 
     if (event.key === "n") {
@@ -168,11 +193,11 @@ document.addEventListener("keydown", function(event) {
                     return;
                 }
 
-                document.getElementById("status").textContent = "Skipped";
+                statusText.textContent = "Skipped";
                 await loadProgress();
             })
             .catch((error) => {
-                document.getElementById("status").textContent = error.message;
+                statusText.textContent = error.message;
             });
     }
 
@@ -194,9 +219,12 @@ document.addEventListener("keydown", function(event) {
 
 let zoom = 1;
 
-const wrapper = document.getElementById("image-wrapper");
-
 window.addEventListener("wheel", function(event) {
+    if (!wrapper.contains(event.target)) {
+        return;
+    }
+
+    event.preventDefault();
 
     if (event.deltaY < 0) {
         zoom *= 1.1;
@@ -207,20 +235,19 @@ window.addEventListener("wheel", function(event) {
     zoom = Math.min(Math.max(zoom, 0.5), 5);
 
     wrapper.style.transform = `scale(${zoom})`;
-});
+    renderMarker();
+}, { passive: false });
 
-document.getElementById("zoom-reset").onclick = resetZoom;
+zoomResetButton.onclick = resetZoom;
 
-document.getElementById("upload-btn").onclick = async function() {
-    const fileInput = document.getElementById("catalog-file");
-
-    if (!fileInput.files.length) {
+uploadButton.onclick = async function() {
+    if (!catalogFileInput.files.length) {
         alert("Please select a CSV file");
         return;
     }
 
     const formData = new FormData();
-    formData.append("file", fileInput.files[0]);
+    formData.append("file", catalogFileInput.files[0]);
 
     const response = await fetch("/upload_catalog", {
         method: "POST",
@@ -229,13 +256,13 @@ document.getElementById("upload-btn").onclick = async function() {
 
     const result = await response.json();
 
-    document.getElementById("upload-status").textContent =
+    uploadStatus.textContent =
         response.ok
             ? `Loaded ${result.total} objects`
             : (result.message || "Upload failed");
 };
 
-document.getElementById("reset-catalog").onclick = async function() {
+resetCatalogButton.onclick = async function() {
 
     const response = await fetch("/reset_catalog", {
         method: "POST"
@@ -243,7 +270,7 @@ document.getElementById("reset-catalog").onclick = async function() {
 
     const result = await response.json();
 
-    document.getElementById("upload-status").textContent =
+    uploadStatus.textContent =
         `Loaded full catalog (${result.total} objects).`;
 
     window.location.href = "/0";

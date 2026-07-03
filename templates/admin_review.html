@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>BCG Picker Admin Review</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body class="admin-page">
+<div class="admin-review-container">
+    <div class="admin-review-header">
+        <h1>Admin Review</h1>
+        <p>
+            Annotated clusters: {{ review_summary.annotated_clusters }} |
+            Agreement: {{ review_summary.agreement_clusters }} |
+            Disagreement: {{ review_summary.disagreement_clusters }}
+        </p>
+        <p>
+            <a href="{{ url_for('home') }}">← Back to picker</a>
+        </p>
+    </div>
+
+    {% if review_groups %}
+        {% for group in review_groups %}
+        <div class="review-card {% if group.has_disagreement %}review-card-disagreement{% else %}review-card-agreement{% endif %}">
+            <div class="review-card-header">
+                <h2>
+                    <a href="{{ url_for('admin_review_cluster', cluster=group.cluster) }}">{{ group.cluster }}</a>
+                </h2>
+                <span class="review-status">
+                    {% if group.has_disagreement %}
+                    Disagreement
+                    {% else %}
+                    Agreement
+                    {% endif %}
+                </span>
+            </div>
+            <p>Image: {{ group.image }}</p>
+            <table class="review-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Status</th>
+                        <th>X</th>
+                        <th>Y</th>
+                        <th>RA</th>
+                        <th>Dec</th>
+                        <th>Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for annotation in group.annotations %}
+                    <tr>
+                        <td>{{ annotation.username }}</td>
+                        <td>{% if annotation.skipped %}Skipped{% else %}Marked{% endif %}</td>
+                        <td>{{ annotation.x }}</td>
+                        <td>{{ annotation.y }}</td>
+                        <td>{{ annotation.ra }}</td>
+                        <td>{{ annotation.dec }}</td>
+                        <td>{{ annotation.updated_at }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p>
+                <a href="{{ url_for('admin_review_cluster', cluster=group.cluster) }}">Open marker overlay view</a>
+            </p>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="review-empty">
+        No annotations available yet.
+    </div>
+    {% endif %}
+</div>
+</body>
+
+</html>

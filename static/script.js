@@ -13,6 +13,7 @@ const statusText = document.getElementById("status");
 const saveButton = document.getElementById("save");
 const nextUnannotatedButton = document.getElementById("next-unannotated");
 const downloadResultsButton = document.getElementById("download-results");
+const downloadAllResultsButton = document.getElementById("download-all-results");
 const zoomResetButton = document.getElementById("zoom-reset");
 const uploadButton = document.getElementById("upload-btn");
 const resetCatalogButton = document.getElementById("reset-catalog");
@@ -174,6 +175,28 @@ downloadResultsButton.onclick = async function() {
         const filename = currentUser ? `${currentUser}_results.csv` : "results.csv";
         link.href = downloadUrl;
         link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+        statusText.textContent = error.message;
+    }
+};
+
+downloadAllResultsButton.onclick = async function() {
+    try {
+        const response = await fetch("/download_all_results");
+        if (!response.ok) {
+            const result = await response.json();
+            throw new Error(result.message || "Download failed");
+        }
+
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = "all_results.csv";
         document.body.appendChild(link);
         link.click();
         link.remove();

@@ -1,3 +1,4 @@
+import math
 import sqlite3
 from pathlib import Path
 
@@ -6,6 +7,7 @@ from flask import current_app, g
 
 
 DEFAULT_SCHEMA_FILE = Path(__file__).with_name("schema.sql")
+REVIEW_CONFLICT_THRESHOLD_DEG = 1.5 / 3600.0
 
 
 def connect_db(db_path):
@@ -283,6 +285,138 @@ def export_user_annotations(username):
         }
         for row in rows
     ]
+
+
+def export_all_annotations():
+    rows = get_db().execute(
+        """
+        SELECT
+            u.username AS username,
+            c.cluster_name AS cluster,
+            c.image AS image,
+            a.x,
+            a.y,
+            a.ra,
+            a.dec,
+            a.skipped,
+            a.updated_at
+        FROM annotations AS a
+        JOIN users AS u ON u.id = a.user_id
+        JOIN clusters AS c ON c.id = a.cluster_id
+        WHERE c.catalog_source = ?
+        ORDER BY lower(u.username), u.username, c.catalog_order, c.id
+        """,
+        (current_app.config["CURRENT_CATALOG_SOURCE"],),
+    ).fetchall()
+    return [
+        {
+            "username": row["username"],
+            "cluster": row["cluster"],
+            "image": row["image"],
+            "x": row["x"] if row["x"] is not None else "",
+            "y": row["y"] if row["y"] is not None else "",
+            "ra": row["ra"] if row["ra"] is not None else "",
+            "dec": row["dec"] if row["dec"] is not None else "",
+            "skipped": "True" if row["skipped"] else "False",
+            "updated_at": row["updated_at"],
+        }
+        for row in rows
+    ]
+
+
+def fetch_review_annotations():
+    rows = get_db().execute(
+        """
+        SELECT
+            c.cluster_name AS cluster,
+            c.image AS image,
+            c.catalog_order AS catalog_order,
+            u.username AS username,
+            a.x,
+            a.y,
+            a.ra,
+            a.dec,
+            a.skipped,
+            a.updated_at
+        FROM annotations AS a
+        JOIN users AS u ON u.id = a.user_id
+        JOIN clusters AS c ON c.id = a.cluster_id
+        WHERE c.catalog_source = ?
+        ORDER BY c.catalog_order, c.id, lower(u.username), u.username
+        """,
+        (current_app.config["CURRENT_CATALOG_SOURCE"],),
+    ).fetchall()
+
+    grouped = []
+    current_cluster = None
+    current_group = None
+    decision_points = []
+
+    for row in rows:
+        cluster_name = row["cluster"]
+        if cluster_name != current_cluster:
+            if current_group is not None:
+                current_group["has_disagreement"] = has_review_disagreement(decision_points)
+                grouped.append(current_group)
+
+            current_cluster = cluster_name
+            current_group = {
+                "cluster": cluster_name,
+                "image": row["image"],
+                "catalog_order": row["catalog_order"],
+                "annotations": [],
+                "has_disagreement": False,
+            }
+            decision_points = []
+
+        annotation = {
+            "username": row["username"],
+            "x": row["x"] if row["x"] is not None else "",
+            "y": row["y"] if row["y"] is not None else "",
+            "ra": row["ra"] if row["ra"] is not None else "",
+            "dec": row["dec"] if row["dec"] is not None else "",
+            "skipped": bool(row["skipped"]),
+            "updated_at": row["updated_at"],
+        }
+        current_group["annotations"].append(annotation)
+        decision_points.append(annotation)
+
+    if current_group is not None:
+        current_group["has_disagreement"] = has_review_disagreement(decision_points)
+        grouped.append(current_group)
+
+    return grouped
+
+
+def fetch_review_cluster(cluster_name):
+    for group in fetch_review_annotations():
+        if group["cluster"] == cluster_name:
+            return group
+    return None
+
+
+def has_review_disagreement(annotations):
+    if not annotations:
+        return False
+
+    skipped_flags = {annotation["skipped"] for annotation in annotations}
+    if len(skipped_flags) > 1:
+        return True
+    if True in skipped_flags:
+        return False
+
+    reference = annotations[0]
+    reference_ra = float(reference["ra"])
+    reference_dec = float(reference["dec"])
+
+    for annotation in annotations[1:]:
+        delta_ra = float(annotation["ra"]) - reference_ra
+        delta_dec = float(annotation["dec"]) - reference_dec
+        separation_deg = math.sqrt(delta_ra ** 2 + delta_dec ** 2)
+        if separation_deg > REVIEW_CONFLICT_THRESHOLD_DEG:
+            return True
+
+    return False
 
 
 @click.command("init-db")

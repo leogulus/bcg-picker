@@ -89,6 +89,14 @@
         <button id="download-results">Download Results CSV</button>
         <span id="status"></span>
 
+        <div id="admin-panel">
+            <h3>Admin Tools</h3>
+            <button id="download-all-results">Download All Results CSV</button>
+            <a id="review-all-results"
+               class="admin-link-button"
+               href="{{ url_for('admin_review') }}">Review All Results</a>
+        </div>
+
         <div class="navigation">
             {% if index > 0 %}
             <a href="{{ url_for('index', index=index-1) }}">← Previous</a>

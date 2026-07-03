@@ -1,5 +1,6 @@
 import csv
 import importlib
+import io
 import os
 import tempfile
 import unittest
@@ -310,6 +311,209 @@ class BCGPickerAppTests(unittest.TestCase):
         self.assertIn('option value="second-user"', page)
         self.assertNotIn("User Progress", page)
         self.assertNotIn("second-user —", page)
+
+    def test_index_shows_admin_export_button(self):
+        response = self.client.get("/0")
+        page = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Admin Tools", page)
+        self.assertIn('id="download-all-results"', page)
+        self.assertIn("Review All Results", page)
+
+    def test_download_all_results_returns_combined_csv(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 100.5,
+                "y": 120.5,
+                "ra": 3.123,
+                "dec": -32.987,
+                "index": 0,
+            },
+        )
+        self.client.post(
+            "/set_user",
+            data={
+                "username": "second-user",
+                "selected_username": "",
+            },
+        )
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0001",
+                "image": "cluster001.jpg",
+                "skipped": True,
+                "index": 1,
+            },
+        )
+
+        response = self.client.get("/download_all_results")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertIn("attachment; filename=all_results.csv", response.headers["Content-Disposition"])
+
+        rows = list(csv.DictReader(io.StringIO(response.get_data(as_text=True))))
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["username"], "second-user")
+        self.assertEqual(rows[0]["cluster"], "Cluster0001")
+        self.assertEqual(rows[0]["skipped"], "True")
+        self.assertEqual(rows[1]["username"], "tester")
+        self.assertEqual(rows[1]["cluster"], "Cluster0000")
+        self.assertEqual(rows[1]["ra"], "3.123")
+        self.assertTrue(rows[0]["updated_at"])
+
+    def test_download_all_results_returns_404_when_empty(self):
+        response = self.client.get("/download_all_results")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("No annotations available yet", response.get_json()["message"])
+
+    def test_admin_review_shows_empty_state(self):
+        response = self.client.get("/admin/review")
+        page = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("No annotations available yet.", page)
+        self.assertIn("Annotated clusters: 0", page)
+
+    def test_admin_review_marks_disagreement(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 100.5,
+                "y": 120.5,
+                "ra": 3.123,
+                "dec": -32.987,
+                "index": 0,
+            },
+        )
+        self.client.post(
+            "/set_user",
+            data={
+                "username": "second-user",
+                "selected_username": "",
+            },
+        )
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 150.0,
+                "y": 180.0,
+                "ra": 3.2,
+                "dec": -33.0,
+                "index": 0,
+            },
+        )
+
+        response = self.client.get("/admin/review")
+        page = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Cluster0000", page)
+        self.assertIn("Disagreement", page)
+        self.assertIn("tester", page)
+        self.assertIn("second-user", page)
+        self.assertIn("Annotated clusters: 1", page)
+        self.assertIn("Disagreement: 1", page)
+
+    def test_admin_review_ignores_small_offset_under_threshold(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 100.5,
+                "y": 120.5,
+                "ra": 3.1230000,
+                "dec": -32.9870000,
+                "index": 0,
+            },
+        )
+        self.client.post(
+            "/set_user",
+            data={
+                "username": "second-user",
+                "selected_username": "",
+            },
+        )
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 101.0,
+                "y": 121.0,
+                "ra": 3.1232500,
+                "dec": -32.9872500,
+                "index": 0,
+            },
+        )
+
+        response = self.client.get("/admin/review")
+        page = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Cluster0000", page)
+        self.assertIn("Agreement", page)
+        self.assertIn("Disagreement: 0", page)
+
+    def test_admin_review_cluster_shows_overlay_markers(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 100.5,
+                "y": 120.5,
+                "ra": 3.123,
+                "dec": -32.987,
+                "index": 0,
+            },
+        )
+        self.client.post(
+            "/set_user",
+            data={
+                "username": "second-user",
+                "selected_username": "",
+            },
+        )
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 150.0,
+                "y": 180.0,
+                "ra": 3.2,
+                "dec": -33.0,
+                "index": 0,
+            },
+        )
+
+        response = self.client.get("/admin/review/Cluster0000")
+        page = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Cluster0000", page)
+        self.assertIn('class="review-marker"', page)
+        self.assertIn('data-x="100.5"', page)
+        self.assertIn('data-x="150.0"', page)
+        self.assertIn("tester", page)
+        self.assertIn("second-user", page)
+        self.assertIn("Open picker view", page)
+
+    def test_admin_review_cluster_returns_404_for_unknown_cluster(self):
+        response = self.client.get("/admin/review/DoesNotExist")
+        self.assertEqual(response.status_code, 404)
 
 
 if __name__ == "__main__":

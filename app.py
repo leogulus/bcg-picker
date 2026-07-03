@@ -9,7 +9,8 @@ import sqlite3
 
 import click
 
-from db import ensure_db, export_user_annotations, fetch_catalog_rows
+from db import ensure_db, export_all_annotations, export_user_annotations, fetch_catalog_rows
+from db import fetch_review_annotations, fetch_review_cluster
 from db import get_annotation_for_user, get_or_create_user, get_user_progress
 from db import init_app as init_db_app, list_usernames, replace_catalog_rows
 from db import get_next_unannotated_cluster, upsert_annotation
@@ -23,7 +24,16 @@ DEFAULT_CATALOG_SOURCE = "default"
 UPLOADED_CATALOG_SOURCE = "uploaded"
 CATALOG_FIELDS = {"cluster", "image", "ra", "dec", "redshift", "pixscale"}
 RESULTS_FIELDNAMES = ["cluster", "image", "x", "y", "ra", "dec", "skipped"]
+ALL_RESULTS_FIELDNAMES = ["username", "cluster", "image", "x", "y", "ra", "dec", "skipped", "updated_at"]
 SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "bcg-picker-dev-secret")
+REVIEW_MARKER_COLORS = [
+    "#e53935",
+    "#1e88e5",
+    "#43a047",
+    "#8e24aa",
+    "#fb8c00",
+    "#00897b",
+]
 
 
 def read_csv_rows(path):
@@ -106,6 +116,31 @@ def build_user_summary():
             "remaining": total - progress["done"] - progress["skipped"],
         }
     }
+
+
+def build_review_summary(review_groups):
+    total_clusters = len(review_groups)
+    disagreement_count = sum(1 for group in review_groups if group["has_disagreement"])
+    return {
+        "annotated_clusters": total_clusters,
+        "disagreement_clusters": disagreement_count,
+        "agreement_clusters": total_clusters - disagreement_count,
+    }
+
+
+def add_review_marker_colors(review_group):
+    if review_group is None:
+        return None
+
+    colored_annotations = []
+    for index, annotation in enumerate(review_group["annotations"]):
+        colored_annotation = dict(annotation)
+        colored_annotation["marker_color"] = REVIEW_MARKER_COLORS[index % len(REVIEW_MARKER_COLORS)]
+        colored_annotations.append(colored_annotation)
+
+    review_group = dict(review_group)
+    review_group["annotations"] = colored_annotations
+    return review_group
 
 
 def create_app(test_config=None):
@@ -256,6 +291,53 @@ def create_app(test_config=None):
             headers={
                 "Content-Disposition": f"attachment; filename={username}_results.csv"
             },
+        )
+
+    @app.route("/download_all_results")
+    def download_all_results():
+        rows = export_all_annotations()
+        if not rows:
+            return jsonify({
+                "status": "error",
+                "message": "No annotations available yet"
+            }), 404
+
+        buffer = io.StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=ALL_RESULTS_FIELDNAMES)
+        writer.writeheader()
+        writer.writerows(rows)
+
+        return Response(
+            buffer.getvalue(),
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": "attachment; filename=all_results.csv"
+            },
+        )
+
+    @app.route("/admin/review")
+    def admin_review():
+        review_groups = fetch_review_annotations()
+        return render_template(
+            "admin_review.html",
+            review_groups=review_groups,
+            review_summary=build_review_summary(review_groups),
+        )
+
+    @app.route("/admin/review/<cluster>")
+    def admin_review_cluster(cluster):
+        review_group = add_review_marker_colors(fetch_review_cluster(cluster))
+        if review_group is None:
+            return "Cluster not found", 404
+
+        galaxy = current_app.config["CATALOG_BY_CLUSTER"].get(cluster)
+        if galaxy is None:
+            return "Cluster not found", 404
+
+        return render_template(
+            "admin_review_cluster.html",
+            review_group=review_group,
+            galaxy=galaxy,
         )
 
     @app.route("/next_unannotated")

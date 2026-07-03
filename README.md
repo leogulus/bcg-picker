@@ -19,6 +19,7 @@ It now uses SQLite for shared catalog storage and per-user annotations, so multi
 - Progress tracking for the active user only
 - Jump to the next unannotated cluster for the current user
 - Download the current user's partial results as CSV at any time
+- Download all users' raw annotations as a combined CSV from the admin tools area
 - Upload a custom catalog and reset to the default catalog
 - Existing-user picker plus simple new-user creation in the UI
 
@@ -131,6 +132,21 @@ SQLite data is stored in `data/bcg_picker.sqlite3`.
 
 Each user sees only their own saved positions, skip states, and progress counts.
 
+## Admin Tools
+
+The right-side panel includes a small admin area with:
+
+- `Download All Results CSV`
+- `Review All Results`
+
+That button downloads the combined raw annotations across all users as:
+
+```text
+all_results.csv
+```
+
+The review page groups annotations by cluster, shows each user's saved position or skip state, and highlights clusters where users disagree.
+
 ## Navigation
 
 Open a cluster by index:
@@ -180,6 +196,12 @@ The download filename is based on the current user, for example:
 
 ```text
 alice_results.csv
+```
+
+The admin export includes:
+
+```text
+username,cluster,image,x,y,ra,dec,skipped,updated_at
 ```
 
 ## Custom Catalogs

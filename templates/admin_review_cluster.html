@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>BCG Picker Review Detail</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body class="admin-page">
+<div class="admin-review-detail-container">
+    <div class="admin-review-header">
+        <h1>{{ review_group.cluster }}</h1>
+        <p>
+            Status:
+            {% if review_group.has_disagreement %}
+            Disagreement
+            {% else %}
+            Agreement
+            {% endif %}
+        </p>
+        <p>
+            <a href="{{ url_for('admin_review') }}">← Back to review</a> |
+            <a href="{{ url_for('cluster', cluster=review_group.cluster) }}">Open picker view</a>
+        </p>
+    </div>
+
+    <div class="admin-review-detail-layout">
+        <div class="admin-image-panel">
+            <div id="admin-image-wrapper" class="admin-image-wrapper">
+                <img id="admin-galaxy"
+                     src="/images/{{ galaxy.image }}"
+                     alt="{{ review_group.cluster }}">
+                {% for annotation in review_group.annotations %}
+                    {% if not annotation.skipped and annotation.x != "" and annotation.y != "" %}
+                    <div class="review-marker"
+                         data-x="{{ annotation.x }}"
+                         data-y="{{ annotation.y }}"
+                         style="border-color: {{ annotation.marker_color }};">
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="admin-side-panel">
+            <div class="review-empty">
+                <h3>Legend</h3>
+                {% for annotation in review_group.annotations %}
+                <div class="review-legend-row">
+                    <span class="review-legend-dot"
+                          style="background: {{ annotation.marker_color }};"></span>
+                    <span>{{ annotation.username }}</span>
+                    <span>
+                        {% if annotation.skipped %}
+                        — Skipped
+                        {% else %}
+                        — Marked
+                        {% endif %}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="review-empty">
+                <h3>Annotations</h3>
+                <table class="review-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Status</th>
+                            <th>X</th>
+                            <th>Y</th>
+                            <th>RA</th>
+                            <th>Dec</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for annotation in review_group.annotations %}
+                        <tr>
+                            <td>{{ annotation.username }}</td>
+                            <td>{% if annotation.skipped %}Skipped{% else %}Marked{% endif %}</td>
+                            <td>{{ annotation.x }}</td>
+                            <td>{{ annotation.y }}</td>
+                            <td>{{ annotation.ra }}</td>
+                            <td>{{ annotation.dec }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const adminImage = document.getElementById("admin-galaxy");
+const reviewMarkers = document.querySelectorAll(".review-marker");
+
+function renderReviewMarkers() {
+    if (!adminImage.naturalWidth || !adminImage.naturalHeight) {
+        return;
+    }
+
+    reviewMarkers.forEach((marker) => {
+        const x = Number(marker.dataset.x);
+        const y = Number(marker.dataset.y);
+        const displayX = (x / adminImage.naturalWidth) * adminImage.clientWidth;
+        const displayY = (y / adminImage.naturalHeight) * adminImage.clientHeight;
+        marker.style.left = displayX + "px";
+        marker.style.top = displayY + "px";
+    });
+}
+
+if (adminImage.complete) {
+    renderReviewMarkers();
+}
+
+adminImage.addEventListener("load", renderReviewMarkers);
+window.addEventListener("resize", renderReviewMarkers);
+</script>
+</body>
+
+</html>

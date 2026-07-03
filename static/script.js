@@ -54,11 +54,8 @@ function updateMarker(x, y) {
 }
 
 async function loadProgress() {
-
     const response = await fetch("/progress");
     const data = await response.json();
-
-    console.log("progress:", data);  // IMPORTANT DEBUG
 
     const percent = (data.done / data.total) * 100;
 
@@ -74,7 +71,6 @@ function resetZoom() {
 }
 
 img.addEventListener("click", function(event){
-    console.log("clicked", currentClick);
     const rect = img.getBoundingClientRect();
 
     const scaleX = img.naturalWidth / rect.width;
@@ -88,31 +84,38 @@ img.addEventListener("click", function(event){
 });
 
 document.getElementById("save").onclick = async function(){
-
     if(currentClick == null){
         alert("Please click on the galaxy first.");
         return;
     }
 
-    const response = await fetch("/save",{
-        method:"POST",
-        headers:{
-            "Content-Type":"application/json"
-        },
-        body: JSON.stringify({
-            ...currentClick,
-            index: currentIndex
-        })
-    });
+    try {
+        const response = await fetch("/save",{
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json"
+            },
+            body: JSON.stringify({
+                ...currentClick,
+                index: currentIndex
+            })
+        });
 
-    const result = await response.json();
-    document.getElementById("status").textContent = "Saved!";
-    if (result.next_url) {
-        setTimeout(() => {
-            window.location.href = result.next_url;
-        }, 300);
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.message || "Save failed");
+        }
+
+        document.getElementById("status").textContent = "Saved!";
+        if (result.next_url) {
+            setTimeout(() => {
+                window.location.href = result.next_url;
+            }, 300);
+        }
+        await loadProgress();
+    } catch (error) {
+        document.getElementById("status").textContent = error.message;
     }
-    await loadProgress();
 };
 
 window.onload = async function() {
@@ -144,18 +147,33 @@ document.addEventListener("keydown", function(event) {
     }
 
     if (event.key === "n") {
-
         fetch("/save", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({
                 cluster: cluster,
                 image: image,
-                skipped: true
+                skipped: true,
+                index: currentIndex
             })
-        }).then(() => {
-            window.location.href = "/" + (currentIndex + 1);
-        });
+        })
+            .then(async (response) => {
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.message || "Skip failed");
+                }
+
+                if (result.next_url) {
+                    window.location.href = result.next_url;
+                    return;
+                }
+
+                document.getElementById("status").textContent = "Skipped";
+                await loadProgress();
+            })
+            .catch((error) => {
+                document.getElementById("status").textContent = error.message;
+            });
     }
 
     if (event.key === "ArrowLeft") {
@@ -194,7 +212,6 @@ window.addEventListener("wheel", function(event) {
 document.getElementById("zoom-reset").onclick = resetZoom;
 
 document.getElementById("upload-btn").onclick = async function() {
-
     const fileInput = document.getElementById("catalog-file");
 
     if (!fileInput.files.length) {
@@ -213,7 +230,9 @@ document.getElementById("upload-btn").onclick = async function() {
     const result = await response.json();
 
     document.getElementById("upload-status").textContent =
-        `Loaded ${result.total} objects`;
+        response.ok
+            ? `Loaded ${result.total} objects`
+            : (result.message || "Upload failed");
 };
 
 document.getElementById("reset-catalog").onclick = async function() {

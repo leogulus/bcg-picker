@@ -11,7 +11,8 @@ import click
 
 from db import ensure_db, export_user_annotations, fetch_catalog_rows
 from db import get_annotation_for_user, get_or_create_user, get_user_progress
-from db import init_app as init_db_app, replace_catalog_rows, upsert_annotation
+from db import init_app as init_db_app, list_usernames, replace_catalog_rows
+from db import get_next_unannotated_cluster, upsert_annotation
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CATALOG_FILE = os.path.join(BASE_DIR, "data", "catalog.csv")
@@ -86,6 +87,27 @@ def get_current_username():
     return session.get("username")
 
 
+def get_existing_usernames():
+    return list_usernames()
+
+
+def build_user_summary():
+    total = len(get_catalog())
+    current_user = get_current_username()
+    if not current_user:
+        return {"current": None}
+
+    progress = get_user_progress(current_user)
+    return {
+        "current": {
+            "username": current_user,
+            "done": progress["done"],
+            "skipped": progress["skipped"],
+            "remaining": total - progress["done"] - progress["skipped"],
+        }
+    }
+
+
 def create_app(test_config=None):
     app = Flask(__name__, static_folder="static", static_url_path="/static")
     app.config["DEFAULT_CATALOG_FILE"] = DEFAULT_CATALOG_FILE
@@ -114,9 +136,14 @@ def create_app(test_config=None):
 
     @app.route("/set_user", methods=["POST"])
     def set_user():
-        username = request.form.get("username", "").strip()
+        selected_username = request.form.get("selected_username", "").strip()
+        new_username = request.form.get("username", "").strip()
+        username = new_username or selected_username
         if not username:
-            return jsonify({"status": "error", "message": "Username is required"}), 400
+            return jsonify({
+                "status": "error",
+                "message": "Choose an existing user or enter a new username"
+            }), 400
 
         get_or_create_user(username)
         session["username"] = username
@@ -177,6 +204,8 @@ def create_app(test_config=None):
             index=index,
             total=len(catalog),
             current_user=get_current_username(),
+            existing_users=get_existing_usernames(),
+            user_summary=build_user_summary(),
         )
 
     @app.route("/cluster/<cluster>")
@@ -192,6 +221,8 @@ def create_app(test_config=None):
             index=index,
             total=len(catalog),
             current_user=get_current_username(),
+            existing_users=get_existing_usernames(),
+            user_summary=build_user_summary(),
         )
 
     @app.route("/images/<filename>")
@@ -226,6 +257,28 @@ def create_app(test_config=None):
                 "Content-Disposition": f"attachment; filename={username}_results.csv"
             },
         )
+
+    @app.route("/next_unannotated")
+    def next_unannotated():
+        username = get_current_username()
+        if not username:
+            return jsonify({
+                "status": "error",
+                "message": "Set a user before jumping to the next unannotated cluster"
+            }), 400
+
+        cluster_name = get_next_unannotated_cluster(username)
+        if cluster_name is None:
+            return jsonify({
+                "status": "ok",
+                "next_url": None,
+                "message": "All clusters in this catalog are annotated for this user"
+            })
+
+        return jsonify({
+            "status": "ok",
+            "next_url": url_for("cluster", cluster=cluster_name)
+        })
 
     @app.route("/save", methods=["POST"])
     def save():
@@ -269,12 +322,8 @@ def create_app(test_config=None):
         except ValueError as error:
             return jsonify({"status": "error", "message": str(error)}), 400
 
-        current_index = data.get("index")
-        catalog = get_catalog()
-        if isinstance(current_index, int) and current_index < len(catalog) - 1:
-            next_url = url_for("index", index=current_index + 1)
-        else:
-            next_url = None
+        next_cluster = get_next_unannotated_cluster(username)
+        next_url = url_for("cluster", cluster=next_cluster) if next_cluster else None
 
         return jsonify({
             "status": "ok",

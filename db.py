@@ -126,6 +126,17 @@ def get_user_by_username(username):
     ).fetchone()
 
 
+def list_usernames():
+    rows = get_db().execute(
+        """
+        SELECT username
+        FROM users
+        ORDER BY lower(username), username
+        """
+    ).fetchall()
+    return [row["username"] for row in rows]
+
+
 def get_annotation_for_user(cluster_name, username):
     return get_db().execute(
         """
@@ -217,6 +228,28 @@ def get_user_progress(username):
         "done": done,
         "skipped": skipped,
     }
+
+
+def get_next_unannotated_cluster(username):
+    row = get_db().execute(
+        """
+        SELECT c.cluster_name
+        FROM clusters AS c
+        LEFT JOIN users AS u
+            ON u.username = ?
+        LEFT JOIN annotations AS a
+            ON a.cluster_id = c.id
+           AND a.user_id = u.id
+        WHERE c.catalog_source = ?
+          AND a.id IS NULL
+        ORDER BY c.catalog_order, c.id
+        LIMIT 1
+        """,
+        (username, current_app.config["CURRENT_CATALOG_SOURCE"]),
+    ).fetchone()
+    if row is None:
+        return None
+    return row["cluster_name"]
 
 
 def export_user_annotations(username):

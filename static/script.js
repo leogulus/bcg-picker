@@ -11,6 +11,7 @@ const progressBar = document.getElementById("progress-bar");
 const progressText = document.getElementById("progress-text");
 const statusText = document.getElementById("status");
 const saveButton = document.getElementById("save");
+const nextUnannotatedButton = document.getElementById("next-unannotated");
 const downloadResultsButton = document.getElementById("download-results");
 const zoomResetButton = document.getElementById("zoom-reset");
 const uploadButton = document.getElementById("upload-btn");
@@ -128,13 +129,32 @@ saveButton.onclick = async function(){
             throw new Error(result.message || "Save failed");
         }
 
-        statusText.textContent = "Saved!";
+        statusText.textContent = result.next_url ? "Saved!" : "Saved! All clusters done for this user.";
         if (result.next_url) {
             setTimeout(() => {
                 window.location.href = result.next_url;
             }, 300);
         }
         await loadProgress();
+    } catch (error) {
+        statusText.textContent = error.message;
+    }
+};
+
+nextUnannotatedButton.onclick = async function() {
+    try {
+        const response = await fetch("/next_unannotated");
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.message || "Jump failed");
+        }
+
+        if (result.next_url) {
+            window.location.href = result.next_url;
+            return;
+        }
+
+        statusText.textContent = result.message || "All clusters are already annotated.";
     } catch (error) {
         statusText.textContent = error.message;
     }
@@ -212,12 +232,16 @@ document.addEventListener("keydown", function(event) {
                     return;
                 }
 
-                statusText.textContent = "Skipped";
+                statusText.textContent = "Skipped! All clusters done for this user.";
                 await loadProgress();
             })
             .catch((error) => {
                 statusText.textContent = error.message;
             });
+    }
+
+    if (event.key === "u" || event.key === "U") {
+        nextUnannotatedButton.click();
     }
 
     if (event.key === "ArrowLeft") {

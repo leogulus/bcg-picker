@@ -2,6 +2,8 @@
 
 BCG Picker is a lightweight Flask app for interactively identifying the Brightest Cluster Galaxy (BCG) in Legacy Survey image cutouts.
 
+It now uses SQLite for shared catalog storage and per-user annotations, so multiple people can work on the same cluster set while keeping separate results.
+
 ## Screenshot
 
 ![BCG Picker interface](screenshots/bcg-picker.png)
@@ -10,37 +12,36 @@ BCG Picker is a lightweight Flask app for interactively identifying the Brightes
 
 - Interactive image viewer for cluster cutouts
 - Click-to-mark BCG selection
-- Pixel-to-RA/Dec conversion
+- Pixel-to-RA/Dec conversion from the selected marker
+- Marker placement that stays aligned while zooming
 - Save and reload annotations per active user
-- Previous/next navigation and keyboard shortcuts
 - Skip uncertain objects
-- Progress tracking
+- Progress tracking for the active user only
+- Jump to the next unannotated cluster for the current user
+- Download the current user's partial results as CSV at any time
 - Upload a custom catalog and reset to the default catalog
+- Existing-user picker plus simple new-user creation in the UI
 
 ## Requirements
 
 - Python 3
 - Flask
 
-Install Flask with either:
-
-```bash
-pip install flask
-```
-
-or:
-
-```bash
-conda install flask
-```
-
-Or install from the repo manifest:
+Install from the repo manifest:
 
 ```bash
 pip install -r requirements.txt
 ```
 
+Or install Flask directly:
+
+```bash
+pip install flask
+```
+
 ## Run the App
+
+Start the app with:
 
 ```bash
 python app.py
@@ -70,6 +71,7 @@ bcg-picker/
 ├── tests/
 │   └── test_app.py
 ├── schema.sql
+├── requirements.txt
 └── README.md
 ```
 
@@ -91,16 +93,43 @@ Cluster0002,cluster001.jpg,12.33456000,-41.12345000,0.56,0.262
 
 Image filenames must correspond to files in `images/`.
 
-## Annotation Workflow
+## SQLite Setup
+
+The app uses SQLite to store:
+
+- catalog rows
+- user records
+- per-user annotations
+
+Initialize the database with:
+
+```bash
+flask --app app init-db
+```
+
+Import the default catalog into SQLite with:
+
+```bash
+flask --app app import-catalog
+```
+
+If the database is empty, the app can also seed the default catalog automatically at startup.
+
+SQLite data is stored in `data/bcg_picker.sqlite3`.
+
+## User Workflow
 
 1. Open the app.
-2. Navigate to a cluster.
-3. Zoom if needed using the mouse wheel.
-4. Click the galaxy to place or move the marker.
-5. Press `S` or click `Save`.
-6. Press `N` to skip uncertain objects.
+2. Choose an existing user from the dropdown, or enter a new username.
+3. Navigate to a cluster.
+4. Zoom if needed using the mouse wheel.
+5. Click the galaxy to place or move the marker.
+6. Press `S` or click `Save`.
+7. Press `N` to skip an uncertain object.
+8. Use `Next Unannotated` or press `U` to jump to the next remaining cluster for that user.
+9. Use `Download Results CSV` anytime to export the current user's current results.
 
-Existing annotations are automatically loaded when revisiting a cluster.
+Each user sees only their own saved positions, skip states, and progress counts.
 
 ## Navigation
 
@@ -123,12 +152,13 @@ http://127.0.0.1:5000/cluster/Cluster0001
 | Click image | Place or move marker |
 | `S` | Save annotation |
 | `N` | Skip current cluster |
+| `U` | Jump to next unannotated cluster |
 | `←` | Previous cluster |
 | `→` | Next cluster |
 | `1` | Reset zoom to 1× |
 | Mouse wheel | Zoom in / out |
 
-## Results
+## Results Export
 
 Downloaded annotation exports use columns:
 
@@ -146,11 +176,19 @@ Cluster0002,,,,,,True
 
 Saving an annotation for the same user and cluster overwrites that user's previous entry.
 
+The download filename is based on the current user, for example:
+
+```text
+alice_results.csv
+```
+
 ## Custom Catalogs
 
 You can upload a custom CSV catalog as long as it uses the same column names as the default catalog and references images present in `images/`.
 
 Use `Use Full Catalog` in the UI to restore the default dataset.
+
+Custom and default catalogs are tracked as separate catalog sources in SQLite.
 
 ## Tests
 
@@ -160,30 +198,15 @@ Run the lightweight test suite with:
 python -m unittest discover -s tests
 ```
 
-## SQLite Preparation
-
-The app now uses SQLite for shared catalog data and per-user annotations.
-
-Initialize the SQLite database with:
+You can also do a quick syntax check with:
 
 ```bash
-flask --app app init-db
+python -m py_compile app.py db.py tests/test_app.py
 ```
-
-This creates the database at `data/bcg_picker.sqlite3` using `schema.sql`.
-
-Import the default catalog into SQLite with:
-
-```bash
-flask --app app import-catalog
-```
-
-After that, the app reads the shared default catalog from SQLite and stores per-user annotations there as well.
-
-Set an active user in the UI before saving annotations. Each user gets separate annotation rows in SQLite and separate CSV downloads.
 
 ## Notes
 
-- The app is intended for local use.
+- The app is intended for local use right now.
 - Images are never modified.
-- SQLite data is stored in `data/bcg_picker.sqlite3`.
+- RA/Dec is derived from the stored marker position and the catalog center coordinates.
+- The current user must be set before saving, skipping, jumping, or downloading results.

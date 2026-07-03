@@ -28,12 +28,23 @@
             <h3>Active User</h3>
             <form action="{{ url_for('set_user') }}" method="post">
                 <input type="hidden" name="next_url" value="{{ request.path }}">
+                <label for="selected-username">Choose existing user</label>
+                <select id="selected-username" name="selected_username">
+                    <option value="">-- Select user --</option>
+                    {% for username in existing_users %}
+                    <option value="{{ username }}"
+                            {% if current_user == username %}selected{% endif %}>
+                        {{ username }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <label for="username-input">Or create / switch to a new user</label>
                 <input
+                    id="username-input"
                     type="text"
                     name="username"
-                    placeholder="Enter username"
-                    value="{{ current_user or '' }}"
-                    required>
+                    placeholder="Enter new username"
+                    value="">
                 <button type="submit">Set User</button>
             </form>
             <div id="current-user-text">
@@ -43,6 +54,13 @@
                 Set a username before saving annotations.
                 {% endif %}
             </div>
+            {% if user_summary.current %}
+            <div id="current-user-summary">
+                Done: {{ user_summary.current.done }}<br>
+                Skipped: {{ user_summary.current.skipped }}<br>
+                Remaining: {{ user_summary.current.remaining }}
+            </div>
+            {% endif %}
         </div>
 
         <h2>{{ galaxy.cluster }}</h2>
@@ -67,6 +85,7 @@
         </div>
 
         <button id="save">Save</button>
+        <button id="next-unannotated">Next Unannotated</button>
         <button id="download-results">Download Results CSV</button>
         <span id="status"></span>
 
@@ -89,6 +108,7 @@
                 <li><b>Click image</b> → Create marker</li>
                 <li><b>S</b> → Save Coordinates to file</li>
                 <li><b>N</b> → Skip/Unsure</li>
+                <li><b>U</b> → Next unannotated cluster</li>
                 <li><b>← / →</b> → Previous / Next cluster</li>
                 <li><b>1</b> → Reset Zoom</li>
                 <li><b>Mouse wheel</b> → Zoom in/out</li>

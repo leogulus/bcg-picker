@@ -147,6 +147,21 @@ all_results.csv
 
 The review page groups annotations by cluster, shows each user's saved position or skip state, and highlights clusters where users disagree.
 
+Clicking a reviewed cluster opens a detail page that:
+
+- displays the cluster image
+- overlays all non-skipped user markers on the same image
+- assigns a different color to each user marker
+- shows a legend so you can match colors to users
+
+For review purposes, two marked positions are treated as agreement when their separation is `<= 1.5` arcsec. The comparison uses the small-angle approximation:
+
+```text
+sqrt((delta_RA)^2 + (delta_Dec)^2)
+```
+
+with `RA` and `Dec` both in degrees.
+
 ## Navigation
 
 Open a cluster by index:

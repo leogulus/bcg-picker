@@ -140,8 +140,27 @@ saveButton.onclick = async function(){
     }
 };
 
-downloadResultsButton.onclick = function() {
-    window.location.href = "/download_results";
+downloadResultsButton.onclick = async function() {
+    try {
+        const response = await fetch("/download_results");
+        if (!response.ok) {
+            const result = await response.json();
+            throw new Error(result.message || "Download failed");
+        }
+
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const filename = currentUser ? `${currentUser}_results.csv` : "results.csv";
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+        statusText.textContent = error.message;
+    }
 };
 
 window.onload = async function() {

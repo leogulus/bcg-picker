@@ -24,6 +24,27 @@
 
     <!-- RIGHT: CONTROL PANEL -->
     <div class="right-panel">
+        <div id="user-panel">
+            <h3>Active User</h3>
+            <form action="{{ url_for('set_user') }}" method="post">
+                <input type="hidden" name="next_url" value="{{ request.path }}">
+                <input
+                    type="text"
+                    name="username"
+                    placeholder="Enter username"
+                    value="{{ current_user or '' }}"
+                    required>
+                <button type="submit">Set User</button>
+            </form>
+            <div id="current-user-text">
+                {% if current_user %}
+                Current user: <b>{{ current_user }}</b>
+                {% else %}
+                Set a username before saving annotations.
+                {% endif %}
+            </div>
+        </div>
+
         <h2>{{ galaxy.cluster }}</h2>
 
         <p>
@@ -97,6 +118,7 @@ const pixscale = {{ galaxy.pixscale }};
 
 const currentIndex = {{ index }};
 const total = {{ total }};
+const currentUser = {{ (current_user or '')|tojson }};
 </script>
 
 <script src="{{ url_for('static', filename='script.js') }}"></script>

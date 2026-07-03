@@ -1,55 +1,33 @@
-from flask import Flask, current_app, jsonify, redirect, render_template, request
+from flask import Flask, Response, current_app, jsonify, redirect, render_template, request
+from flask import session
 from flask import send_from_directory, url_for
 
 import csv
+import io
 import os
+import sqlite3
+
+import click
+
+from db import ensure_db, export_user_annotations, fetch_catalog_rows
+from db import get_annotation_for_user, get_or_create_user, get_user_progress
+from db import init_app as init_db_app, replace_catalog_rows, upsert_annotation
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RESULTS_FILE = os.path.join(BASE_DIR, "data", "results.csv")
 DEFAULT_CATALOG_FILE = os.path.join(BASE_DIR, "data", "catalog.csv")
 UPLOADED_CATALOG_FILE = os.path.join(BASE_DIR, "data", "uploaded_catalog.csv")
+DATABASE_PATH = os.path.join(BASE_DIR, "data", "bcg_picker.sqlite3")
+DATABASE_SCHEMA = os.path.join(BASE_DIR, "schema.sql")
+DEFAULT_CATALOG_SOURCE = "default"
+UPLOADED_CATALOG_SOURCE = "uploaded"
 CATALOG_FIELDS = {"cluster", "image", "ra", "dec", "redshift", "pixscale"}
 RESULTS_FIELDNAMES = ["cluster", "image", "x", "y", "ra", "dec", "skipped"]
+SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "bcg-picker-dev-secret")
 
 
 def read_csv_rows(path):
     with open(path, newline="") as file_obj:
         return list(csv.DictReader(file_obj))
-
-
-def read_results():
-    results_file = current_app.config["RESULTS_FILE"]
-    if not os.path.exists(results_file):
-        return []
-    return read_csv_rows(results_file)
-
-
-def read_results_map():
-    return {
-        row["cluster"]: row
-        for row in read_results()
-    }
-
-
-def write_results(rows):
-    results_file = current_app.config["RESULTS_FILE"]
-    with open(results_file, "w", newline="") as file_obj:
-        writer = csv.DictWriter(file_obj, fieldnames=RESULTS_FIELDNAMES)
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def write_results_map(results_by_cluster):
-    catalog_index = current_app.config["CATALOG_INDEX"]
-    ordered_clusters = sorted(
-        results_by_cluster,
-        key=lambda cluster: (
-            cluster not in catalog_index,
-            catalog_index.get(cluster, float("inf")),
-            cluster,
-        ),
-    )
-    write_results([results_by_cluster[cluster] for cluster in ordered_clusters])
 
 
 def validate_catalog_rows(rows):
@@ -84,12 +62,70 @@ def set_catalog(app, rows):
     }
 
 
-def create_app():
+def load_runtime_catalog(app):
+    fallback_rows = load_catalog(app.config["DEFAULT_CATALOG_FILE"])
+
+    if not os.path.exists(app.config["DATABASE_PATH"]):
+        return fallback_rows
+
+    try:
+        with app.app_context():
+            database_rows = fetch_catalog_rows(app.config["CURRENT_CATALOG_SOURCE"])
+    except sqlite3.Error:
+        return fallback_rows
+
+    if not database_rows:
+        with app.app_context():
+            replace_catalog_rows(fallback_rows, app.config["DEFAULT_CATALOG_SOURCE"])
+            database_rows = fetch_catalog_rows(app.config["DEFAULT_CATALOG_SOURCE"])
+
+    return database_rows or fallback_rows
+
+
+def get_current_username():
+    return session.get("username")
+
+
+def create_app(test_config=None):
     app = Flask(__name__, static_folder="static", static_url_path="/static")
-    app.config["RESULTS_FILE"] = RESULTS_FILE
     app.config["DEFAULT_CATALOG_FILE"] = DEFAULT_CATALOG_FILE
     app.config["UPLOADED_CATALOG_FILE"] = UPLOADED_CATALOG_FILE
-    set_catalog(app, load_catalog(DEFAULT_CATALOG_FILE))
+    app.config["DATABASE_PATH"] = DATABASE_PATH
+    app.config["DATABASE_SCHEMA"] = DATABASE_SCHEMA
+    app.config["DEFAULT_CATALOG_SOURCE"] = DEFAULT_CATALOG_SOURCE
+    app.config["UPLOADED_CATALOG_SOURCE"] = UPLOADED_CATALOG_SOURCE
+    app.config["CURRENT_CATALOG_SOURCE"] = DEFAULT_CATALOG_SOURCE
+    app.config["SECRET_KEY"] = SECRET_KEY
+    if test_config:
+        app.config.update(test_config)
+    init_db_app(app)
+    with app.app_context():
+        ensure_db()
+    set_catalog(app, load_runtime_catalog(app))
+
+    @app.cli.command("import-catalog")
+    @click.option("--path", "catalog_path", default=None, help="Path to a catalog CSV file.")
+    @click.option("--source", "catalog_source", default=DEFAULT_CATALOG_SOURCE, help="Catalog source name in SQLite.")
+    def import_catalog_command(catalog_path, catalog_source):
+        source_path = catalog_path or current_app.config["DEFAULT_CATALOG_FILE"]
+        rows = load_catalog(source_path)
+        replace_catalog_rows(rows, catalog_source)
+        click.echo(f"Imported {len(rows)} clusters into SQLite source '{catalog_source}'.")
+
+    @app.route("/set_user", methods=["POST"])
+    def set_user():
+        username = request.form.get("username", "").strip()
+        if not username:
+            return jsonify({"status": "error", "message": "Username is required"}), 400
+
+        get_or_create_user(username)
+        session["username"] = username
+
+        next_url = request.form.get("next_url")
+        if next_url:
+            return redirect(next_url)
+
+        return jsonify({"status": "ok", "username": username})
 
     @app.route("/upload_catalog", methods=["POST"])
     def upload_catalog():
@@ -102,7 +138,10 @@ def create_app():
         file.save(upload_path)
 
         try:
-            set_catalog(current_app, load_catalog(upload_path))
+            rows = load_catalog(upload_path)
+            replace_catalog_rows(rows, current_app.config["UPLOADED_CATALOG_SOURCE"])
+            current_app.config["CURRENT_CATALOG_SOURCE"] = current_app.config["UPLOADED_CATALOG_SOURCE"]
+            set_catalog(current_app, rows)
         except ValueError as error:
             return jsonify({"status": "error", "message": str(error)}), 400
 
@@ -113,8 +152,8 @@ def create_app():
 
     @app.route("/reset_catalog", methods=["POST"])
     def reset_catalog():
-        default_catalog_file = current_app.config["DEFAULT_CATALOG_FILE"]
-        set_catalog(current_app, load_catalog(default_catalog_file))
+        current_app.config["CURRENT_CATALOG_SOURCE"] = current_app.config["DEFAULT_CATALOG_SOURCE"]
+        set_catalog(current_app, load_runtime_catalog(current_app))
 
         return jsonify({
             "status": "ok",
@@ -132,7 +171,13 @@ def create_app():
             return "Cluster index out of range", 404
 
         galaxy = catalog[index]
-        return render_template("index.html", galaxy=galaxy, index=index, total=len(catalog))
+        return render_template(
+            "index.html",
+            galaxy=galaxy,
+            index=index,
+            total=len(catalog),
+            current_user=get_current_username(),
+        )
 
     @app.route("/cluster/<cluster>")
     def cluster(cluster):
@@ -145,7 +190,8 @@ def create_app():
             "index.html",
             galaxy=galaxy,
             index=index,
-            total=len(catalog)
+            total=len(catalog),
+            current_user=get_current_username(),
         )
 
     @app.route("/images/<filename>")
@@ -154,19 +200,31 @@ def create_app():
 
     @app.route("/download_results")
     def download_results():
-        results_file = current_app.config["RESULTS_FILE"]
-
-        if not os.path.exists(results_file):
+        username = get_current_username()
+        if not username:
             return jsonify({
                 "status": "error",
-                "message": "No results file available yet"
+                "message": "Set a user before downloading results"
+            }), 400
+
+        rows = export_user_annotations(username)
+        if not rows:
+            return jsonify({
+                "status": "error",
+                "message": "No results available yet for this user"
             }), 404
 
-        return send_from_directory(
-            os.path.dirname(results_file),
-            os.path.basename(results_file),
-            as_attachment=True,
-            download_name="results.csv"
+        buffer = io.StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=RESULTS_FIELDNAMES)
+        writer.writeheader()
+        writer.writerows(rows)
+
+        return Response(
+            buffer.getvalue(),
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={username}_results.csv"
+            },
         )
 
     @app.route("/save", methods=["POST"])
@@ -174,6 +232,10 @@ def create_app():
         data = request.get_json(silent=True)
         if not data:
             return jsonify({"status": "error", "message": "Invalid JSON payload"}), 400
+
+        username = get_current_username()
+        if not username:
+            return jsonify({"status": "error", "message": "Set a user before saving"}), 400
 
         cluster_name = data.get("cluster")
         if not cluster_name:
@@ -189,21 +251,23 @@ def create_app():
                     "message": f"Missing fields: {', '.join(missing_fields)}"
                 }), 400
 
-        results_by_cluster = read_results_map()
-        existing_row = results_by_cluster.get(cluster_name)
+        existing_row = get_annotation_for_user(cluster_name, username)
         updated = existing_row is not None
 
-        results_by_cluster[cluster_name] = {
+        annotation = {
             "cluster": cluster_name,
-            "image": data.get("image", existing_row["image"] if existing_row else ""),
+            "image": data.get("image", ""),
             "x": data.get("x", ""),
             "y": data.get("y", ""),
             "ra": data.get("ra", ""),
             "dec": data.get("dec", ""),
-            "skipped": str(skipped),
+            "skipped": skipped,
         }
 
-        write_results_map(results_by_cluster)
+        try:
+            upsert_annotation(username, annotation)
+        except ValueError as error:
+            return jsonify({"status": "error", "message": str(error)}), 400
 
         current_index = data.get("index")
         catalog = get_catalog()
@@ -220,9 +284,13 @@ def create_app():
 
     @app.route("/load/<cluster>")
     def load(cluster):
-        row = read_results_map().get(cluster)
+        username = get_current_username()
+        if not username:
+            return jsonify({"exists": False})
+
+        row = get_annotation_for_user(cluster, username)
         if row is not None:
-            if row.get("skipped", "False") == "True":
+            if row["skipped"]:
                 return jsonify({
                     "exists": True,
                     "skipped": True
@@ -231,10 +299,10 @@ def create_app():
             return jsonify({
                 "exists": True,
                 "skipped": False,
-                "x": float(row["x"]) if row["x"] else None,
-                "y": float(row["y"]) if row["y"] else None,
-                "ra": float(row["ra"]) if row["ra"] else None,
-                "dec": float(row["dec"]) if row["dec"] else None,
+                "x": float(row["x"]) if row["x"] is not None else None,
+                "y": float(row["y"]) if row["y"] is not None else None,
+                "ra": float(row["ra"]) if row["ra"] is not None else None,
+                "dec": float(row["dec"]) if row["dec"] is not None else None,
             })
 
         return jsonify({"exists": False})
@@ -242,14 +310,14 @@ def create_app():
     @app.route("/progress")
     def progress():
         total = len(get_catalog())
-        done = 0
-        skipped = 0
-
-        for row in read_results_map().values():
-            if row.get("skipped", "False") == "True":
-                skipped += 1
-            elif row.get("x"):
-                done += 1
+        username = get_current_username()
+        if username:
+            progress_data = get_user_progress(username)
+            done = progress_data["done"]
+            skipped = progress_data["skipped"]
+        else:
+            done = 0
+            skipped = 0
 
         return jsonify({
             "total": total,

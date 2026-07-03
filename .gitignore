@@ -11,3 +11,4 @@ venv/
 
 # Generated annotation results
 data/results.csv
+data/bcg_picker.sqlite3

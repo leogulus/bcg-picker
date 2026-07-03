@@ -11,7 +11,7 @@ BCG Picker is a lightweight Flask app for interactively identifying the Brightes
 - Interactive image viewer for cluster cutouts
 - Click-to-mark BCG selection
 - Pixel-to-RA/Dec conversion
-- Save and reload annotations from CSV
+- Save and reload annotations per active user
 - Previous/next navigation and keyboard shortcuts
 - Skip uncertain objects
 - Progress tracking
@@ -57,9 +57,10 @@ http://127.0.0.1:5000/
 ```text
 bcg-picker/
 ├── app.py
+├── db.py
 ├── data/
 │   ├── catalog.csv
-│   └── results.csv
+│   └── bcg_picker.sqlite3
 ├── images/
 ├── static/
 │   ├── script.js
@@ -68,6 +69,7 @@ bcg-picker/
 │   └── index.html
 ├── tests/
 │   └── test_app.py
+├── schema.sql
 └── README.md
 ```
 
@@ -128,7 +130,7 @@ http://127.0.0.1:5000/cluster/Cluster0001
 
 ## Results
 
-Annotations are stored in `data/results.csv` with columns:
+Downloaded annotation exports use columns:
 
 ```text
 cluster,image,x,y,ra,dec,skipped
@@ -142,7 +144,7 @@ Cluster0001,cluster000.jpg,479.6,489.3,3.17581,-32.97221,False
 Cluster0002,,,,,,True
 ```
 
-Saving an annotation for the same cluster overwrites the previous entry.
+Saving an annotation for the same user and cluster overwrites that user's previous entry.
 
 ## Custom Catalogs
 
@@ -158,8 +160,30 @@ Run the lightweight test suite with:
 python -m unittest discover -s tests
 ```
 
+## SQLite Preparation
+
+The app now uses SQLite for shared catalog data and per-user annotations.
+
+Initialize the SQLite database with:
+
+```bash
+flask --app app init-db
+```
+
+This creates the database at `data/bcg_picker.sqlite3` using `schema.sql`.
+
+Import the default catalog into SQLite with:
+
+```bash
+flask --app app import-catalog
+```
+
+After that, the app reads the shared default catalog from SQLite and stores per-user annotations there as well.
+
+Set an active user in the UI before saving annotations. Each user gets separate annotation rows in SQLite and separate CSV downloads.
+
 ## Notes
 
 - The app is intended for local use.
 - Images are never modified.
-- Results are written to `data/results.csv`.
+- SQLite data is stored in `data/bcg_picker.sqlite3`.

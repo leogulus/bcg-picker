@@ -58,8 +58,10 @@
             <div id="current-user-summary">
                 Done: {{ user_summary.current.done }}<br>
                 Skipped: {{ user_summary.current.skipped }}<br>
+                Flagged: {{ user_summary.current.flagged }}<br>
                 Remaining: {{ user_summary.current.remaining }}
             </div>
+            <button id="reset-user-results" class="danger-button" type="button">Reset Current User Results</button>
             {% endif %}
         </div>
 
@@ -86,6 +88,7 @@
 
         <button id="save">Save</button>
         <button id="next-unannotated">Next Unannotated</button>
+        <button id="flag-interesting">Flag Interesting</button>
         <button id="download-results">Download Results CSV</button>
         <span id="status"></span>
 
@@ -116,6 +119,7 @@
                 <li><b>Click image</b> → Create marker</li>
                 <li><b>S</b> → Save Coordinates to file</li>
                 <li><b>N</b> → Skip/Unsure</li>
+                <li><b>F</b> → Flag Interesting</li>
                 <li><b>U</b> → Next unannotated cluster</li>
                 <li><b>← / →</b> → Previous / Next cluster</li>
                 <li><b>1</b> → Reset Zoom</li>

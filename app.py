@@ -13,7 +13,7 @@ from db import ensure_db, export_all_annotations, export_user_annotations, fetch
 from db import fetch_review_annotations, fetch_review_cluster
 from db import get_annotation_for_user, get_or_create_user, get_user_progress
 from db import init_app as init_db_app, list_usernames, replace_catalog_rows
-from db import get_next_unannotated_cluster, upsert_annotation
+from db import get_next_unannotated_cluster, reset_user_annotations, upsert_annotation
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CATALOG_FILE = os.path.join(BASE_DIR, "data", "catalog.csv")
@@ -23,8 +23,8 @@ DATABASE_SCHEMA = os.path.join(BASE_DIR, "schema.sql")
 DEFAULT_CATALOG_SOURCE = "default"
 UPLOADED_CATALOG_SOURCE = "uploaded"
 CATALOG_FIELDS = {"cluster", "image", "ra", "dec", "redshift", "pixscale"}
-RESULTS_FIELDNAMES = ["cluster", "image", "x", "y", "ra", "dec", "skipped"]
-ALL_RESULTS_FIELDNAMES = ["username", "cluster", "image", "x", "y", "ra", "dec", "skipped", "updated_at"]
+RESULTS_FIELDNAMES = ["cluster", "image", "x", "y", "ra", "dec", "skipped", "flagged"]
+ALL_RESULTS_FIELDNAMES = ["username", "cluster", "image", "x", "y", "ra", "dec", "skipped", "flagged", "updated_at"]
 SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "bcg-picker-dev-secret")
 REVIEW_MARKER_COLORS = [
     "#e53935",
@@ -113,7 +113,8 @@ def build_user_summary():
             "username": current_user,
             "done": progress["done"],
             "skipped": progress["skipped"],
-            "remaining": total - progress["done"] - progress["skipped"],
+            "flagged": progress["flagged"],
+            "remaining": total - progress["done"] - progress["skipped"] - progress["flagged"],
         }
     }
 
@@ -293,6 +294,21 @@ def create_app(test_config=None):
             },
         )
 
+    @app.route("/reset_user_results", methods=["POST"])
+    def reset_user_results():
+        username = get_current_username()
+        if not username:
+            return jsonify({
+                "status": "error",
+                "message": "Set a user before resetting results"
+            }), 400
+
+        reset_user_annotations(username)
+        return jsonify({
+            "status": "ok",
+            "username": username,
+        })
+
     @app.route("/download_all_results")
     def download_all_results():
         rows = export_all_annotations()
@@ -377,7 +393,14 @@ def create_app(test_config=None):
             return jsonify({"status": "error", "message": "Missing cluster"}), 400
 
         skipped = bool(data.get("skipped", False))
-        if not skipped:
+        flagged = bool(data.get("flagged", False))
+        if skipped and flagged:
+            return jsonify({
+                "status": "error",
+                "message": "An annotation cannot be skipped and flagged at the same time"
+            }), 400
+
+        if not skipped and not flagged:
             required_fields = ("image", "x", "y", "ra", "dec")
             missing_fields = [field for field in required_fields if data.get(field) in (None, "")]
             if missing_fields:
@@ -392,11 +415,12 @@ def create_app(test_config=None):
         annotation = {
             "cluster": cluster_name,
             "image": data.get("image", ""),
-            "x": data.get("x", ""),
-            "y": data.get("y", ""),
-            "ra": data.get("ra", ""),
-            "dec": data.get("dec", ""),
+            "x": None if skipped or flagged else data.get("x"),
+            "y": None if skipped or flagged else data.get("y"),
+            "ra": None if skipped or flagged else data.get("ra"),
+            "dec": None if skipped or flagged else data.get("dec"),
             "skipped": skipped,
+            "flagged": flagged,
         }
 
         try:
@@ -427,9 +451,17 @@ def create_app(test_config=None):
                     "skipped": True
                 })
 
+            if row["flagged"]:
+                return jsonify({
+                    "exists": True,
+                    "skipped": False,
+                    "flagged": True
+                })
+
             return jsonify({
                 "exists": True,
                 "skipped": False,
+                "flagged": False,
                 "x": float(row["x"]) if row["x"] is not None else None,
                 "y": float(row["y"]) if row["y"] is not None else None,
                 "ra": float(row["ra"]) if row["ra"] is not None else None,
@@ -446,15 +478,18 @@ def create_app(test_config=None):
             progress_data = get_user_progress(username)
             done = progress_data["done"]
             skipped = progress_data["skipped"]
+            flagged = progress_data["flagged"]
         else:
             done = 0
             skipped = 0
+            flagged = 0
 
         return jsonify({
             "total": total,
             "done": done,
             "skipped": skipped,
-            "remaining": total - done - skipped
+            "flagged": flagged,
+            "remaining": total - done - skipped - flagged
         })
 
     return app

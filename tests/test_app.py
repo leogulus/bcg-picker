@@ -101,6 +101,7 @@ class BCGPickerAppTests(unittest.TestCase):
             {
                 "exists": True,
                 "skipped": False,
+                "flagged": False,
                 "x": 100.5,
                 "y": 120.5,
                 "ra": 3.123,
@@ -129,7 +130,44 @@ class BCGPickerAppTests(unittest.TestCase):
                 "total": 2,
                 "done": 0,
                 "skipped": 1,
+                "flagged": 0,
                 "remaining": 1,
+            },
+        )
+
+    def test_flagged_updates_progress_and_load(self):
+        response = self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0001",
+                "image": "cluster001.jpg",
+                "flagged": True,
+                "index": 1,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["next_url"], "/cluster/Cluster0000")
+
+        progress_response = self.client.get("/progress")
+        self.assertEqual(
+            progress_response.get_json(),
+            {
+                "total": 2,
+                "done": 0,
+                "skipped": 0,
+                "flagged": 1,
+                "remaining": 1,
+            },
+        )
+
+        load_response = self.client.get("/load/Cluster0001")
+        self.assertEqual(
+            load_response.get_json(),
+            {
+                "exists": True,
+                "skipped": False,
+                "flagged": True,
             },
         )
 
@@ -285,7 +323,10 @@ class BCGPickerAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Current user: <b>tester</b>", page)
         self.assertIn("Done: 1", page)
+        self.assertIn("Flagged: 0", page)
         self.assertIn("Remaining: 1", page)
+        self.assertIn('id="reset-user-results"', page)
+        self.assertIn('id="flag-interesting"', page)
 
     def test_index_lists_known_users_in_picker_only(self):
         self.client.post(
@@ -372,6 +413,75 @@ class BCGPickerAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertIn("No annotations available yet", response.get_json()["message"])
+
+    def test_reset_user_results_requires_active_user(self):
+        with self.client.session_transaction() as session:
+            session.pop("username", None)
+
+        response = self.client.post("/reset_user_results")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Set a user", response.get_json()["message"])
+
+    def test_reset_user_results_clears_only_current_user_annotations(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 100.5,
+                "y": 120.5,
+                "ra": 3.123,
+                "dec": -32.987,
+                "index": 0,
+            },
+        )
+        self.client.post(
+            "/set_user",
+            data={
+                "username": "second-user",
+                "selected_username": "",
+            },
+        )
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0001",
+                "image": "cluster001.jpg",
+                "x": 150.0,
+                "y": 180.0,
+                "ra": 6.6,
+                "dec": -32.5,
+                "index": 1,
+            },
+        )
+        self.client.post("/reset_user_results")
+
+        progress_response = self.client.get("/progress")
+        self.assertEqual(
+            progress_response.get_json(),
+            {
+                "total": 2,
+                "done": 0,
+                "skipped": 0,
+                "flagged": 0,
+                "remaining": 2,
+            },
+        )
+
+        load_response = self.client.get("/load/Cluster0001")
+        self.assertEqual(load_response.get_json(), {"exists": False})
+
+        self.client.post(
+            "/set_user",
+            data={
+                "username": "tester",
+                "selected_username": "",
+            },
+        )
+        tester_load_response = self.client.get("/load/Cluster0000")
+        self.assertEqual(tester_load_response.status_code, 200)
+        self.assertEqual(tester_load_response.get_json()["exists"], True)
 
     def test_admin_review_shows_empty_state(self):
         response = self.client.get("/admin/review")

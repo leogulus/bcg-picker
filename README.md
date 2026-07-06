@@ -16,6 +16,7 @@ It now uses SQLite for shared catalog storage and per-user annotations, so multi
 - Marker placement that stays aligned while zooming
 - Save and reload annotations per active user
 - Skip uncertain objects
+- Flag interesting objects for later review
 - Progress tracking for the active user only
 - Jump to the next unannotated cluster for the current user
 - Download the current user's partial results as CSV at any time
@@ -127,8 +128,10 @@ SQLite data is stored in `data/bcg_picker.sqlite3`.
 5. Click the galaxy to place or move the marker.
 6. Press `S` or click `Save`.
 7. Press `N` to skip an uncertain object.
-8. Use `Next Unannotated` or press `U` to jump to the next remaining cluster for that user.
-9. Use `Download Results CSV` anytime to export the current user's current results.
+8. Press `F` or click `Flag Interesting` to mark an object for later review.
+9. Use `Next Unannotated` or press `U` to jump to the next remaining cluster for that user.
+10. Use `Download Results CSV` anytime to export the current user's current results.
+11. Use `Reset Current User Results` if you want to clear that user's saved work for the current catalog and start over.
 
 Each user sees only their own saved positions, skip states, and progress counts.
 
@@ -183,6 +186,7 @@ http://127.0.0.1:5000/cluster/Cluster0001
 | Click image | Place or move marker |
 | `S` | Save annotation |
 | `N` | Skip current cluster |
+| `F` | Flag interesting object |
 | `U` | Jump to next unannotated cluster |
 | `←` | Previous cluster |
 | `→` | Next cluster |
@@ -194,7 +198,7 @@ http://127.0.0.1:5000/cluster/Cluster0001
 Downloaded annotation exports use columns:
 
 ```text
-cluster,image,x,y,ra,dec,skipped
+cluster,image,x,y,ra,dec,skipped,flagged
 ```
 
 Example:
@@ -216,7 +220,7 @@ alice_results.csv
 The admin export includes:
 
 ```text
-username,cluster,image,x,y,ra,dec,skipped,updated_at
+username,cluster,image,x,y,ra,dec,skipped,flagged,updated_at
 ```
 
 ## Custom Catalogs

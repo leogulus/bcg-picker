@@ -12,8 +12,10 @@ const progressText = document.getElementById("progress-text");
 const statusText = document.getElementById("status");
 const saveButton = document.getElementById("save");
 const nextUnannotatedButton = document.getElementById("next-unannotated");
+const flagInterestingButton = document.getElementById("flag-interesting");
 const downloadResultsButton = document.getElementById("download-results");
 const downloadAllResultsButton = document.getElementById("download-all-results");
+const resetUserResultsButton = document.getElementById("reset-user-results");
 const zoomResetButton = document.getElementById("zoom-reset");
 const uploadButton = document.getElementById("upload-btn");
 const resetCatalogButton = document.getElementById("reset-catalog");
@@ -77,6 +79,42 @@ function updateMarker(x, y) {
     renderMarker();
 }
 
+function clearMarkerSelection() {
+    currentClick = null;
+    renderMarker();
+    xValue.textContent = "-";
+    yValue.textContent = "-";
+    raValue.textContent = "-";
+    decValue.textContent = "-";
+}
+
+async function submitQuickStatus(payload, finalMessage) {
+    const response = await fetch("/save", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            cluster: cluster,
+            image: image,
+            index: currentIndex,
+            ...payload
+        })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+        throw new Error(result.message || "Save failed");
+    }
+
+    clearMarkerSelection();
+    await loadProgress();
+
+    if (result.next_url) {
+        window.location.href = result.next_url;
+        return;
+    }
+
+    statusText.textContent = finalMessage;
+}
+
 async function loadProgress() {
     const response = await fetch("/progress");
     const data = await response.json();
@@ -85,7 +123,7 @@ async function loadProgress() {
 
     progressBar.value = percent;
     progressText.textContent =
-        `${data.done} / ${data.total} done, ${data.skipped} skipped, ${data.remaining} remaining`;
+        `${data.done} / ${data.total} done, ${data.skipped} skipped, ${data.flagged} flagged, ${data.remaining} remaining`;
 }
 
 function resetZoom() {
@@ -206,6 +244,53 @@ downloadAllResultsButton.onclick = async function() {
     }
 };
 
+flagInterestingButton.onclick = async function() {
+    try {
+        await submitQuickStatus(
+            { flagged: true },
+            "Flagged! All clusters done for this user."
+        );
+    } catch (error) {
+        statusText.textContent = error.message;
+    }
+};
+
+if (resetUserResultsButton) {
+    resetUserResultsButton.onclick = async function() {
+        if (!currentUser) {
+            statusText.textContent = "Set a user before resetting results.";
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Reset all saved results for user "${currentUser}" in the current catalog?`
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await fetch("/reset_user_results", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.message || "Reset failed");
+            }
+
+            clearMarkerSelection();
+            statusText.textContent = `Reset results for ${result.username}.`;
+            await loadProgress();
+            window.location.reload();
+        } catch (error) {
+            statusText.textContent = error.message;
+        }
+    };
+}
+
 window.onload = async function() {
 
     await loadProgress();
@@ -216,7 +301,14 @@ window.onload = async function() {
     if (!result.exists) return;
 
     if (result.skipped) {
+        clearMarkerSelection();
         statusText.textContent = "Skipped";
+        return;
+    }
+
+    if (result.flagged) {
+        clearMarkerSelection();
+        statusText.textContent = "Flagged";
         return;
     }
 
@@ -234,33 +326,17 @@ document.addEventListener("keydown", function(event) {
     }
 
     if (event.key === "n") {
-        fetch("/save", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                cluster: cluster,
-                image: image,
-                skipped: true,
-                index: currentIndex
-            })
-        })
-            .then(async (response) => {
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.message || "Skip failed");
-                }
-
-                if (result.next_url) {
-                    window.location.href = result.next_url;
-                    return;
-                }
-
-                statusText.textContent = "Skipped! All clusters done for this user.";
-                await loadProgress();
-            })
+        submitQuickStatus(
+            { skipped: true },
+            "Skipped! All clusters done for this user."
+        )
             .catch((error) => {
                 statusText.textContent = error.message;
             });
+    }
+
+    if (event.key === "f" || event.key === "F") {
+        flagInterestingButton.click();
     }
 
     if (event.key === "u" || event.key === "U") {

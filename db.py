@@ -39,6 +39,20 @@ def init_db(schema_path=None):
 
 def ensure_db():
     init_db()
+    ensure_annotations_schema()
+
+
+def ensure_annotations_schema():
+    database = get_db()
+    columns = {
+        row["name"]
+        for row in database.execute("PRAGMA table_info(annotations)").fetchall()
+    }
+    if "flagged" not in columns:
+        database.execute(
+            "ALTER TABLE annotations ADD COLUMN flagged INTEGER NOT NULL DEFAULT 0"
+        )
+        database.commit()
 
 
 def fetch_catalog_rows(catalog_source="default"):
@@ -147,7 +161,8 @@ def get_annotation_for_user(cluster_name, username):
             a.y,
             a.ra,
             a.dec,
-            a.skipped
+            a.skipped,
+            a.flagged
         FROM annotations AS a
         JOIN users AS u ON u.id = a.user_id
         JOIN clusters AS c ON c.id = a.cluster_id
@@ -181,9 +196,10 @@ def upsert_annotation(username, annotation):
             ra,
             dec,
             skipped,
+            flagged,
             updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(user_id, cluster_id)
         DO UPDATE SET
             x = excluded.x,
@@ -191,6 +207,7 @@ def upsert_annotation(username, annotation):
             ra = excluded.ra,
             dec = excluded.dec,
             skipped = excluded.skipped,
+            flagged = excluded.flagged,
             updated_at = CURRENT_TIMESTAMP
         """,
         (
@@ -201,6 +218,7 @@ def upsert_annotation(username, annotation):
             annotation.get("ra"),
             annotation.get("dec"),
             1 if annotation.get("skipped") else 0,
+            1 if annotation.get("flagged") else 0,
         ),
     )
     database.commit()
@@ -209,7 +227,7 @@ def upsert_annotation(username, annotation):
 def get_user_progress(username):
     rows = get_db().execute(
         """
-        SELECT a.x, a.skipped
+        SELECT a.x, a.skipped, a.flagged
         FROM annotations AS a
         JOIN users AS u ON u.id = a.user_id
         JOIN clusters AS c ON c.id = a.cluster_id
@@ -220,16 +238,39 @@ def get_user_progress(username):
 
     done = 0
     skipped = 0
+    flagged = 0
     for row in rows:
         if row["skipped"]:
             skipped += 1
+        elif row["flagged"]:
+            flagged += 1
         elif row["x"] is not None:
             done += 1
 
     return {
         "done": done,
         "skipped": skipped,
+        "flagged": flagged,
     }
+
+
+def reset_user_annotations(username):
+    database = get_db()
+    database.execute(
+        """
+        DELETE FROM annotations
+        WHERE user_id = (
+            SELECT id FROM users WHERE username = ?
+        )
+        AND cluster_id IN (
+            SELECT id
+            FROM clusters
+            WHERE catalog_source = ?
+        )
+        """,
+        (username, current_app.config["CURRENT_CATALOG_SOURCE"]),
+    )
+    database.commit()
 
 
 def get_next_unannotated_cluster(username):
@@ -264,7 +305,8 @@ def export_user_annotations(username):
             a.y,
             a.ra,
             a.dec,
-            a.skipped
+            a.skipped,
+            a.flagged
         FROM annotations AS a
         JOIN users AS u ON u.id = a.user_id
         JOIN clusters AS c ON c.id = a.cluster_id
@@ -282,6 +324,7 @@ def export_user_annotations(username):
             "ra": row["ra"] if row["ra"] is not None else "",
             "dec": row["dec"] if row["dec"] is not None else "",
             "skipped": "True" if row["skipped"] else "False",
+            "flagged": "True" if row["flagged"] else "False",
         }
         for row in rows
     ]
@@ -299,6 +342,7 @@ def export_all_annotations():
             a.ra,
             a.dec,
             a.skipped,
+            a.flagged,
             a.updated_at
         FROM annotations AS a
         JOIN users AS u ON u.id = a.user_id
@@ -318,6 +362,7 @@ def export_all_annotations():
             "ra": row["ra"] if row["ra"] is not None else "",
             "dec": row["dec"] if row["dec"] is not None else "",
             "skipped": "True" if row["skipped"] else "False",
+            "flagged": "True" if row["flagged"] else "False",
             "updated_at": row["updated_at"],
         }
         for row in rows
@@ -337,6 +382,7 @@ def fetch_review_annotations():
             a.ra,
             a.dec,
             a.skipped,
+            a.flagged,
             a.updated_at
         FROM annotations AS a
         JOIN users AS u ON u.id = a.user_id
@@ -376,6 +422,7 @@ def fetch_review_annotations():
             "ra": row["ra"] if row["ra"] is not None else "",
             "dec": row["dec"] if row["dec"] is not None else "",
             "skipped": bool(row["skipped"]),
+            "flagged": bool(row["flagged"]),
             "updated_at": row["updated_at"],
         }
         current_group["annotations"].append(annotation)
@@ -399,10 +446,15 @@ def has_review_disagreement(annotations):
     if not annotations:
         return False
 
-    skipped_flags = {annotation["skipped"] for annotation in annotations}
-    if len(skipped_flags) > 1:
+    states = {
+        "skipped" if annotation["skipped"] else
+        "flagged" if annotation["flagged"] else
+        "marked"
+        for annotation in annotations
+    }
+    if len(states) > 1:
         return True
-    if True in skipped_flags:
+    if "skipped" in states or "flagged" in states:
         return False
 
     reference = annotations[0]

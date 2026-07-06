@@ -54,6 +54,8 @@
                     <span>
                         {% if annotation.skipped %}
                         — Skipped
+                        {% elif annotation.flagged %}
+                        — Flagged
                         {% else %}
                         — Marked
                         {% endif %}
@@ -79,7 +81,15 @@
                         {% for annotation in review_group.annotations %}
                         <tr>
                             <td>{{ annotation.username }}</td>
-                            <td>{% if annotation.skipped %}Skipped{% else %}Marked{% endif %}</td>
+                            <td>
+                                {% if annotation.skipped %}
+                                Skipped
+                                {% elif annotation.flagged %}
+                                Flagged
+                                {% else %}
+                                Marked
+                                {% endif %}
+                            </td>
                             <td>{{ annotation.x }}</td>
                             <td>{{ annotation.y }}</td>
                             <td>{{ annotation.ra }}</td>

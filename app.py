@@ -10,6 +10,7 @@ import sqlite3
 import click
 
 from db import ensure_db, export_all_annotations, export_user_annotations, fetch_catalog_rows
+from db import fetch_catalog_rows_for_user_filter
 from db import fetch_review_annotations, fetch_review_cluster
 from db import get_annotation_for_user, get_or_create_user, get_user_progress
 from db import init_app as init_db_app, list_usernames, replace_catalog_rows
@@ -34,6 +35,14 @@ REVIEW_MARKER_COLORS = [
     "#fb8c00",
     "#00897b",
 ]
+CATALOG_FILTER_ALL = "all"
+CATALOG_FILTER_SKIPPED = "skipped"
+CATALOG_FILTER_FLAGGED = "flagged"
+VALID_CATALOG_FILTERS = {
+    CATALOG_FILTER_ALL,
+    CATALOG_FILTER_SKIPPED,
+    CATALOG_FILTER_FLAGGED,
+}
 
 
 def read_csv_rows(path):
@@ -97,8 +106,66 @@ def get_current_username():
     return session.get("username")
 
 
+def get_catalog_filter_mode():
+    filter_mode = session.get("catalog_filter", CATALOG_FILTER_ALL)
+    if filter_mode not in VALID_CATALOG_FILTERS:
+        return CATALOG_FILTER_ALL
+    return filter_mode
+
+
 def get_existing_usernames():
     return list_usernames()
+
+
+def get_catalog_maps(rows):
+    return {
+        "index": {
+            row["cluster"]: index
+            for index, row in enumerate(rows)
+        },
+        "by_cluster": {
+            row["cluster"]: row
+            for row in rows
+        },
+    }
+
+
+def get_visible_catalog(username=None, filter_mode=None):
+    selected_username = username if username is not None else get_current_username()
+    selected_filter = filter_mode or get_catalog_filter_mode()
+
+    if selected_filter == CATALOG_FILTER_ALL:
+        return get_catalog()
+
+    if not selected_username:
+        return []
+
+    return fetch_catalog_rows_for_user_filter(
+        selected_username,
+        selected_filter,
+        current_app.config["CURRENT_CATALOG_SOURCE"],
+    )
+
+
+def get_filtered_next_cluster(rows, current_cluster, current_index):
+    if not rows:
+        return None
+
+    for index, row in enumerate(rows):
+        if row["cluster"] != current_cluster:
+            continue
+
+        if index + 1 < len(rows):
+            return rows[index + 1]["cluster"]
+        if index > 0:
+            return rows[index - 1]["cluster"]
+        return rows[index]["cluster"]
+
+    if current_index is not None:
+        bounded_index = max(0, min(current_index, len(rows) - 1))
+        return rows[bounded_index]["cluster"]
+
+    return rows[0]["cluster"]
 
 
 def build_user_summary():
@@ -229,7 +296,19 @@ def create_app(test_config=None):
 
     @app.route("/<int:index>")
     def index(index):
-        catalog = get_catalog()
+        catalog = get_visible_catalog()
+        if not catalog:
+            return render_template(
+                "index.html",
+                galaxy=None,
+                index=0,
+                total=0,
+                current_user=get_current_username(),
+                existing_users=get_existing_usernames(),
+                user_summary=build_user_summary(),
+                catalog_filter_mode=get_catalog_filter_mode(),
+            )
+
         if index < 0 or index >= len(catalog):
             return "Cluster index out of range", 404
 
@@ -242,15 +321,29 @@ def create_app(test_config=None):
             current_user=get_current_username(),
             existing_users=get_existing_usernames(),
             user_summary=build_user_summary(),
+            catalog_filter_mode=get_catalog_filter_mode(),
         )
 
     @app.route("/cluster/<cluster>")
     def cluster(cluster):
-        catalog = get_catalog()
-        galaxy = current_app.config["CATALOG_BY_CLUSTER"].get(cluster)
+        catalog = get_visible_catalog()
+        if not catalog:
+            return render_template(
+                "index.html",
+                galaxy=None,
+                index=0,
+                total=0,
+                current_user=get_current_username(),
+                existing_users=get_existing_usernames(),
+                user_summary=build_user_summary(),
+                catalog_filter_mode=get_catalog_filter_mode(),
+            )
+
+        catalog_maps = get_catalog_maps(catalog)
+        galaxy = catalog_maps["by_cluster"].get(cluster)
         if galaxy is None:
-            return "Cluster not found", 404
-        index = current_app.config["CATALOG_INDEX"][cluster]
+            return redirect(url_for("cluster", cluster=catalog[0]["cluster"]))
+        index = catalog_maps["index"][cluster]
         return render_template(
             "index.html",
             galaxy=galaxy,
@@ -259,7 +352,42 @@ def create_app(test_config=None):
             current_user=get_current_username(),
             existing_users=get_existing_usernames(),
             user_summary=build_user_summary(),
+            catalog_filter_mode=get_catalog_filter_mode(),
         )
+
+    @app.route("/set_catalog_filter", methods=["POST"])
+    def set_catalog_filter():
+        data = request.get_json(silent=True) or request.form
+        filter_mode = data.get("filter_mode", CATALOG_FILTER_ALL)
+        current_cluster = data.get("cluster")
+
+        if filter_mode not in VALID_CATALOG_FILTERS:
+            return jsonify({
+                "status": "error",
+                "message": "Unsupported catalog filter"
+            }), 400
+
+        if filter_mode != CATALOG_FILTER_ALL and not get_current_username():
+            return jsonify({
+                "status": "error",
+                "message": "Set a user before filtering skipped or flagged objects"
+            }), 400
+
+        session["catalog_filter"] = filter_mode
+        catalog = get_visible_catalog(filter_mode=filter_mode)
+
+        next_url = url_for("index", index=0)
+        if current_cluster and any(row["cluster"] == current_cluster for row in catalog):
+            next_url = url_for("cluster", cluster=current_cluster)
+        elif catalog:
+            next_url = url_for("cluster", cluster=catalog[0]["cluster"])
+
+        return jsonify({
+            "status": "ok",
+            "filter_mode": filter_mode,
+            "total": len(catalog),
+            "next_url": next_url,
+        })
 
     @app.route("/images/<filename>")
     def images(filename):
@@ -428,7 +556,15 @@ def create_app(test_config=None):
         except ValueError as error:
             return jsonify({"status": "error", "message": str(error)}), 400
 
-        next_cluster = get_next_unannotated_cluster(username)
+        filter_mode = get_catalog_filter_mode()
+        if filter_mode == CATALOG_FILTER_ALL:
+            next_cluster = get_next_unannotated_cluster(username)
+        else:
+            current_index = data.get("index")
+            if not isinstance(current_index, int):
+                current_index = None
+            visible_catalog = get_visible_catalog(username=username, filter_mode=filter_mode)
+            next_cluster = get_filtered_next_cluster(visible_catalog, cluster_name, current_index)
         next_url = url_for("cluster", cluster=next_cluster) if next_cluster else None
 
         return jsonify({

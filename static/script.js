@@ -8,6 +8,7 @@ const yValue = document.getElementById("y");
 const raValue = document.getElementById("ra");
 const decValue = document.getElementById("dec");
 const currentUserSummary = document.getElementById("current-user-summary");
+const annotationStateBadge = document.getElementById("annotation-state-badge");
 const statusText = document.getElementById("status");
 const saveButton = document.getElementById("save");
 const skipUnsureButton = document.getElementById("skip-unsure");
@@ -21,6 +22,9 @@ const uploadButton = document.getElementById("upload-btn");
 const resetCatalogButton = document.getElementById("reset-catalog");
 const uploadStatus = document.getElementById("upload-status");
 const catalogFileInput = document.getElementById("catalog-file");
+const filterAllButton = document.getElementById("filter-all");
+const filterSkippedButton = document.getElementById("filter-skipped");
+const filterFlaggedButton = document.getElementById("filter-flagged");
 
 function pixelToRaDec(x, y, ra0, dec0, pixscale) {
 
@@ -88,6 +92,32 @@ function clearMarkerSelection() {
     decValue.textContent = "-";
 }
 
+function setAnnotationState(state) {
+    if (!annotationStateBadge) {
+        return;
+    }
+
+    annotationStateBadge.className = "annotation-state-badge";
+    if (state === "saved") {
+        annotationStateBadge.classList.add("annotation-state-saved");
+        annotationStateBadge.textContent = "Saved";
+        return;
+    }
+    if (state === "skipped") {
+        annotationStateBadge.classList.add("annotation-state-skipped");
+        annotationStateBadge.textContent = "Skipped";
+        return;
+    }
+    if (state === "flagged") {
+        annotationStateBadge.classList.add("annotation-state-flagged");
+        annotationStateBadge.textContent = "Flagged";
+        return;
+    }
+
+    annotationStateBadge.classList.add("annotation-state-none");
+    annotationStateBadge.textContent = "Not saved";
+}
+
 async function submitQuickStatus(payload, finalMessage) {
     const response = await fetch("/save", {
         method: "POST",
@@ -112,6 +142,11 @@ async function submitQuickStatus(payload, finalMessage) {
         return;
     }
 
+    if (payload.skipped) {
+        setAnnotationState("skipped");
+    } else if (payload.flagged) {
+        setAnnotationState("flagged");
+    }
     statusText.textContent = finalMessage;
 }
 
@@ -129,23 +164,65 @@ async function loadProgress() {
 
 function resetZoom() {
     zoom = 1;
-    wrapper.style.transform = "scale(1)";
-    renderMarker();
+    if (wrapper) {
+        wrapper.style.transform = "scale(1)";
+        renderMarker();
+    }
 }
 
-img.addEventListener("click", function(event){
-    const rect = img.getBoundingClientRect();
+function setActiveCatalogFilter(filterMode) {
+    const filterButtons = [
+        [filterAllButton, "all"],
+        [filterSkippedButton, "skipped"],
+        [filterFlaggedButton, "flagged"]
+    ];
 
-    const scaleX = img.naturalWidth / rect.width;
-    const scaleY = img.naturalHeight / rect.height;
+    for (const [button, buttonMode] of filterButtons) {
+        if (!button) {
+            continue;
+        }
+        button.classList.toggle("active", filterMode === buttonMode);
+    }
+}
 
-    const x = (event.clientX - rect.left) * scaleX;
-    const y = (event.clientY - rect.top) * scaleY;
+async function applyCatalogFilter(filterMode) {
+    try {
+        const response = await fetch("/set_catalog_filter", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                filter_mode: filterMode,
+                cluster: cluster
+            })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.message || "Could not update catalog filter");
+        }
 
-    updateMarker(x, y);
+        setActiveCatalogFilter(result.filter_mode);
+        window.location.href = result.next_url;
+    } catch (error) {
+        statusText.textContent = error.message;
+    }
+}
 
-});
+if (img) {
+    img.addEventListener("click", function(event){
+        const rect = img.getBoundingClientRect();
 
+        const scaleX = img.naturalWidth / rect.width;
+        const scaleY = img.naturalHeight / rect.height;
+
+        const x = (event.clientX - rect.left) * scaleX;
+        const y = (event.clientY - rect.top) * scaleY;
+
+        updateMarker(x, y);
+
+    });
+}
+
+if (saveButton) {
 saveButton.onclick = async function(){
     if(currentClick == null){
         alert("Please click on the galaxy first.");
@@ -169,6 +246,7 @@ saveButton.onclick = async function(){
             throw new Error(result.message || "Save failed");
         }
 
+        setAnnotationState("saved");
         statusText.textContent = result.next_url ? "Saved!" : "Saved! All clusters done for this user.";
         if (result.next_url) {
             setTimeout(() => {
@@ -180,7 +258,9 @@ saveButton.onclick = async function(){
         statusText.textContent = error.message;
     }
 };
+}
 
+if (nextUnannotatedButton) {
 nextUnannotatedButton.onclick = async function() {
     try {
         const response = await fetch("/next_unannotated");
@@ -199,7 +279,9 @@ nextUnannotatedButton.onclick = async function() {
         statusText.textContent = error.message;
     }
 };
+}
 
+if (downloadResultsButton) {
 downloadResultsButton.onclick = async function() {
     try {
         const response = await fetch("/download_results");
@@ -222,7 +304,9 @@ downloadResultsButton.onclick = async function() {
         statusText.textContent = error.message;
     }
 };
+}
 
+if (downloadAllResultsButton) {
 downloadAllResultsButton.onclick = async function() {
     try {
         const response = await fetch("/download_all_results");
@@ -244,7 +328,9 @@ downloadAllResultsButton.onclick = async function() {
         statusText.textContent = error.message;
     }
 };
+}
 
+if (flagInterestingButton) {
 flagInterestingButton.onclick = async function() {
     try {
         await submitQuickStatus(
@@ -255,7 +341,9 @@ flagInterestingButton.onclick = async function() {
         statusText.textContent = error.message;
     }
 };
+}
 
+if (skipUnsureButton) {
 skipUnsureButton.onclick = async function() {
     try {
         await submitQuickStatus(
@@ -266,6 +354,7 @@ skipUnsureButton.onclick = async function() {
         statusText.textContent = error.message;
     }
 };
+}
 
 if (resetUserResultsButton) {
     resetUserResultsButton.onclick = async function() {
@@ -304,8 +393,12 @@ if (resetUserResultsButton) {
 }
 
 window.onload = async function() {
-
+    setActiveCatalogFilter(currentFilterMode);
     await loadProgress();
+
+    if (!hasGalaxy) {
+        return;
+    }
 
     const response = await fetch("/load/" + cluster);
     const result = await response.json();
@@ -314,25 +407,30 @@ window.onload = async function() {
 
     if (result.skipped) {
         clearMarkerSelection();
+        setAnnotationState("skipped");
         statusText.textContent = "Skipped";
         return;
     }
 
     if (result.flagged) {
         clearMarkerSelection();
+        setAnnotationState("flagged");
         statusText.textContent = "Flagged";
         return;
     }
 
     if (result.x !== undefined && result.y !== undefined) {
         updateMarker(result.x, result.y);
+        setAnnotationState("saved");
         statusText.textContent = "Existing annotation loaded.";
     }
-
 };
 
 document.addEventListener("keydown", function(event) {
-    
+    if (!hasGalaxy) {
+        return;
+    }
+
     if (event.key === "s") {
         saveButton.click();
     }
@@ -368,7 +466,7 @@ document.addEventListener("keydown", function(event) {
 let zoom = 1;
 
 window.addEventListener("wheel", function(event) {
-    if (!wrapper.contains(event.target)) {
+    if (!wrapper || !wrapper.contains(event.target)) {
         return;
     }
 
@@ -386,7 +484,9 @@ window.addEventListener("wheel", function(event) {
     renderMarker();
 }, { passive: false });
 
-zoomResetButton.onclick = resetZoom;
+if (zoomResetButton) {
+    zoomResetButton.onclick = resetZoom;
+}
 
 uploadButton.onclick = async function() {
     if (!catalogFileInput.files.length) {
@@ -423,3 +523,21 @@ resetCatalogButton.onclick = async function() {
 
     window.location.href = "/0";
 };
+
+if (filterAllButton) {
+    filterAllButton.onclick = function() {
+        applyCatalogFilter("all");
+    };
+}
+
+if (filterSkippedButton) {
+    filterSkippedButton.onclick = function() {
+        applyCatalogFilter("skipped");
+    };
+}
+
+if (filterFlaggedButton) {
+    filterFlaggedButton.onclick = function() {
+        applyCatalogFilter("flagged");
+    };
+}

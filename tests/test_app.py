@@ -303,6 +303,98 @@ class BCGPickerAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["next_url"], "/cluster/Cluster0001")
 
+    def test_set_catalog_filter_shows_skipped_only(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0001",
+                "image": "cluster001.jpg",
+                "skipped": True,
+                "index": 1,
+            },
+        )
+
+        response = self.client.post(
+            "/set_catalog_filter",
+            json={
+                "filter_mode": "skipped",
+                "cluster": "Cluster0000",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["filter_mode"], "skipped")
+        self.assertEqual(response.get_json()["total"], 1)
+        self.assertEqual(response.get_json()["next_url"], "/cluster/Cluster0001")
+
+        page_response = self.client.get("/0")
+        page = page_response.get_data(as_text=True)
+
+        self.assertEqual(page_response.status_code, 200)
+        self.assertIn("Cluster0001", page)
+        self.assertIn("Galaxy 1 / 1", page)
+        self.assertNotIn("Cluster0000</h2>", page)
+
+    def test_set_catalog_filter_shows_flagged_only(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "flagged": True,
+                "index": 0,
+            },
+        )
+
+        response = self.client.post(
+            "/set_catalog_filter",
+            json={
+                "filter_mode": "flagged",
+                "cluster": "Cluster0001",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["filter_mode"], "flagged")
+        self.assertEqual(response.get_json()["total"], 1)
+        self.assertEqual(response.get_json()["next_url"], "/cluster/Cluster0000")
+
+        page_response = self.client.get("/0")
+        page = page_response.get_data(as_text=True)
+
+        self.assertEqual(page_response.status_code, 200)
+        self.assertIn("Cluster0000", page)
+        self.assertIn("Galaxy 1 / 1", page)
+        self.assertNotIn("Cluster0001</h2>", page)
+
+    def test_set_catalog_filter_requires_active_user_for_filtered_views(self):
+        with self.client.session_transaction() as session:
+            session.pop("username", None)
+
+        response = self.client.post(
+            "/set_catalog_filter",
+            json={"filter_mode": "skipped"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Set a user", response.get_json()["message"])
+
+    def test_filtered_view_shows_empty_state_when_no_matches(self):
+        response = self.client.post(
+            "/set_catalog_filter",
+            json={"filter_mode": "flagged"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["total"], 0)
+
+        page_response = self.client.get("/0")
+        page = page_response.get_data(as_text=True)
+
+        self.assertEqual(page_response.status_code, 200)
+        self.assertIn("No objects in this view", page)
+        self.assertIn("No objects match this filter", page)
+
     def test_index_shows_current_user_summary(self):
         self.client.post(
             "/save",

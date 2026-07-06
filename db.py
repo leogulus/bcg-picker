@@ -78,6 +78,44 @@ def fetch_catalog_rows(catalog_source="default"):
     ]
 
 
+def fetch_catalog_rows_for_user_filter(username, filter_mode, catalog_source="default"):
+    if filter_mode not in {"skipped", "flagged"}:
+        raise ValueError("Unsupported catalog filter mode")
+
+    filter_column = "a.skipped" if filter_mode == "skipped" else "a.flagged"
+    rows = get_db().execute(
+        f"""
+        SELECT
+            c.cluster_name,
+            c.image,
+            c.ra_center,
+            c.dec_center,
+            c.redshift,
+            c.pixscale
+        FROM clusters AS c
+        JOIN annotations AS a ON a.cluster_id = c.id
+        JOIN users AS u ON u.id = a.user_id
+        WHERE u.username = ?
+          AND c.catalog_source = ?
+          AND {filter_column} = 1
+        ORDER BY c.catalog_order, c.id
+        """
+        ,
+        (username, catalog_source),
+    ).fetchall()
+    return [
+        {
+            "cluster": row["cluster_name"],
+            "image": row["image"],
+            "ra": row["ra_center"],
+            "dec": row["dec_center"],
+            "redshift": row["redshift"],
+            "pixscale": row["pixscale"],
+        }
+        for row in rows
+    ]
+
+
 def replace_catalog_rows(rows, catalog_source="default"):
     database = get_db()
     database.execute(

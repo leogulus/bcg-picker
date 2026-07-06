@@ -55,7 +55,11 @@
                 {% endif %}
             </div>
             {% if user_summary.current %}
-            <div id="current-user-summary">
+            <div id="current-user-summary"
+                 data-done="{{ user_summary.current.done }}"
+                 data-skipped="{{ user_summary.current.skipped }}"
+                 data-flagged="{{ user_summary.current.flagged }}"
+                 data-remaining="{{ user_summary.current.remaining }}">
                 Done: {{ user_summary.current.done }}<br>
                 Skipped: {{ user_summary.current.skipped }}<br>
                 Flagged: {{ user_summary.current.flagged }}<br>
@@ -67,39 +71,21 @@
 
         <h2>{{ galaxy.cluster }}</h2>
 
-        <p>
-            Galaxy {{ index+1 }} / {{ total }} <br>
-            z = {{ galaxy.redshift }}
-        </p>
+        <div id="cluster-info-panel">
+            <div id="cluster-meta">
+                Galaxy {{ index+1 }} / {{ total }} <br>
+                z = {{ galaxy.redshift }}
+            </div>
 
-        <button id="zoom-reset">Zoom 1</button>
-
-        <div id="progress">
-            <progress id="progress-bar" value="0" max="100"></progress>
-            <div id="progress-text">Loading...</div>
+            <div id="info">
+                X: <span id="x" class="picked-value">-</span><br>
+                Y: <span id="y" class="picked-value">-</span><br>
+                RA: <span id="ra" class="picked-value">-</span><br>
+                Dec: <span id="dec" class="picked-value">-</span>
+            </div>
         </div>
 
-        <div id="info">
-            X: <span id="x">-</span><br>
-            Y: <span id="y">-</span><br>
-            RA: <span id="ra">-</span><br>
-            Dec: <span id="dec">-</span>
-        </div>
-
-        <button id="save">Save</button>
-        <button id="next-unannotated">Next Unannotated</button>
-        <button id="flag-interesting">Flag Interesting</button>
-        <button id="download-results">Download Results CSV</button>
         <span id="status"></span>
-
-        <div id="admin-panel">
-            <h3>Admin Tools</h3>
-            <button id="download-all-results">Download All Results CSV</button>
-            <a id="review-all-results"
-               class="admin-link-button"
-               href="{{ url_for('admin_review') }}">Review All Results</a>
-        </div>
-
         <div class="navigation">
             {% if index > 0 %}
             <a href="{{ url_for('index', index=index-1) }}">← Previous</a>
@@ -111,6 +97,17 @@
             <a href="{{ url_for('index', index=index+1) }}">Next →</a>
             {% endif %}
         </div>
+
+        <div id="primary-actions">
+        <button id="save">Save</button>
+        <button id="skip-unsure">Unsure</button>
+        <button id="flag-interesting">Flag</button>
+        <button id="next-unannotated">Next unannotated</button>
+        </div>
+        <button id="download-results">Download Results CSV</button>
+        <button id="zoom-reset">Zoom 1</button>
+        
+
 
         <div id="shortcuts">
             <h3>Controls</h3>
@@ -135,6 +132,14 @@
         </div>
 
         <button id="reset-catalog">Use Full Catalog</button>
+
+                <div id="admin-panel">
+            <h3>Admin Tools</h3>
+            <button id="download-all-results">Download All Results CSV</button>
+            <a id="review-all-results"
+               class="admin-link-button"
+               href="{{ url_for('admin_review') }}">Review All Results</a>
+        </div>
 
     </div>
 

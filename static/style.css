@@ -22,10 +22,38 @@ body {
 }
 
 #info{
+    font-size:15px;
+}
 
-    margin-top:20px;
-    font-size:18px;
+#cluster-info-panel {
+    margin-top: 12px;
+    padding: 12px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
 
+#cluster-meta {
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: #333;
+}
+
+#info {
+    margin-top: 0;
+    line-height: 1.7;
+}
+
+.picked-value {
+    display: inline-block;
+    min-width: 78px;
+    padding: 2px 8px;
+    margin-left: 4px;
+    background: #eef5ff;
+    border: 1px solid #b7cff5;
+    border-radius: 4px;
+    font-weight: 600;
+    color: #174a8b;
 }
 
 .layout {
@@ -70,6 +98,19 @@ button {
     padding: 10px;
     margin-top: 10px;
     font-size: 16px;
+}
+
+#primary-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+#primary-actions button {
+    margin-top: 0;
+    font-size: 13px;
+    min-height: 52px;
 }
 
 .danger-button {

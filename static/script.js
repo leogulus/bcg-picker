@@ -7,10 +7,10 @@ const xValue = document.getElementById("x");
 const yValue = document.getElementById("y");
 const raValue = document.getElementById("ra");
 const decValue = document.getElementById("dec");
-const progressBar = document.getElementById("progress-bar");
-const progressText = document.getElementById("progress-text");
+const currentUserSummary = document.getElementById("current-user-summary");
 const statusText = document.getElementById("status");
 const saveButton = document.getElementById("save");
+const skipUnsureButton = document.getElementById("skip-unsure");
 const nextUnannotatedButton = document.getElementById("next-unannotated");
 const flagInterestingButton = document.getElementById("flag-interesting");
 const downloadResultsButton = document.getElementById("download-results");
@@ -118,12 +118,13 @@ async function submitQuickStatus(payload, finalMessage) {
 async function loadProgress() {
     const response = await fetch("/progress");
     const data = await response.json();
-
-    const percent = (data.done / data.total) * 100;
-
-    progressBar.value = percent;
-    progressText.textContent =
-        `${data.done} / ${data.total} done, ${data.skipped} skipped, ${data.flagged} flagged, ${data.remaining} remaining`;
+    if (currentUserSummary) {
+        currentUserSummary.innerHTML =
+            `Done: ${data.done}<br>` +
+            `Skipped: ${data.skipped}<br>` +
+            `Flagged: ${data.flagged}<br>` +
+            `Remaining: ${data.remaining}`;
+    }
 }
 
 function resetZoom() {
@@ -255,6 +256,17 @@ flagInterestingButton.onclick = async function() {
     }
 };
 
+skipUnsureButton.onclick = async function() {
+    try {
+        await submitQuickStatus(
+            { skipped: true },
+            "Skipped! All clusters done for this user."
+        );
+    } catch (error) {
+        statusText.textContent = error.message;
+    }
+};
+
 if (resetUserResultsButton) {
     resetUserResultsButton.onclick = async function() {
         if (!currentUser) {
@@ -326,13 +338,7 @@ document.addEventListener("keydown", function(event) {
     }
 
     if (event.key === "n") {
-        submitQuickStatus(
-            { skipped: true },
-            "Skipped! All clusters done for this user."
-        )
-            .catch((error) => {
-                statusText.textContent = error.message;
-            });
+        skipUnsureButton.click();
     }
 
     if (event.key === "f" || event.key === "F") {

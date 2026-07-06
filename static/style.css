@@ -27,10 +27,6 @@ body {
 
 #cluster-info-panel {
     margin-top: 12px;
-    padding: 12px;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 6px;
 }
 
 #cluster-meta {
@@ -115,7 +111,7 @@ body {
 .right-panel {
     width: 320px;
     padding: 20px;
-    background: #f5f5f5;
+    background: linear-gradient(180deg, #f6f8fb 0%, #eef3f9 100%);
     overflow-y: auto;
 }
 
@@ -132,6 +128,24 @@ button {
     padding: 10px;
     margin-top: 10px;
     font-size: 16px;
+    border: 1px solid #c7d2e2;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #ffffff 0%, #f3f7fc 100%);
+    color: #1f3552;
+    box-shadow: 0 1px 2px rgba(25, 45, 72, 0.08);
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+button:hover,
+.admin-link-button:hover {
+    background: linear-gradient(180deg, #ffffff 0%, #eaf2fd 100%);
+    border-color: #9bb8e8;
+    box-shadow: 0 4px 12px rgba(33, 78, 146, 0.12);
+}
+
+button:active,
+.admin-link-button:active {
+    transform: translateY(1px);
 }
 
 #primary-actions {
@@ -148,8 +162,8 @@ button {
 }
 
 .danger-button {
-    background: #fff1f1;
-    border: 1px solid #d66;
+    background: linear-gradient(180deg, #fff7f7 0%, #ffe9e9 100%);
+    border: 1px solid #e3aaaa;
     color: #8a1f1f;
 }
 
@@ -174,17 +188,23 @@ button {
     transform-origin: center center;
 }
 
-#shortcuts {
-    margin-top: 20px;
-    padding: 10px;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 6px;
+.right-panel-card {
+    margin-bottom: 16px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid #d9e2ef;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(31, 53, 82, 0.07);
+    backdrop-filter: blur(4px);
 }
 
-#shortcuts h3 {
+.right-panel-card h3 {
     margin: 0 0 8px 0;
     font-size: 14px;
+}
+
+#shortcuts {
+    margin-top: 0;
 }
 
 #shortcuts ul {
@@ -209,18 +229,6 @@ button {
     font-family: monospace;
 }
 
-#user-panel {
-    margin-bottom: 16px;
-    padding: 10px;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-}
-
-#user-panel h3 {
-    margin: 0 0 8px 0;
-}
-
 #user-panel label {
     display: block;
     margin-top: 8px;
@@ -233,25 +241,17 @@ button {
     margin-top: 4px;
     padding: 8px;
     box-sizing: border-box;
+    border: 1px solid #c9d4e4;
+    border-radius: 8px;
+    background: #fbfdff;
+    color: #23354d;
 }
 
 #current-user-text,
 #current-user-summary {
     margin-top: 10px;
     font-size: 13px;
-}
-
-#catalog-filter-panel {
-    margin-bottom: 16px;
-    padding: 10px;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-}
-
-#catalog-filter-panel h3 {
-    margin: 0 0 8px 0;
-    font-size: 14px;
+    color: #314760;
 }
 
 #catalog-filter-buttons {
@@ -264,15 +264,14 @@ button {
     margin-top: 0;
     font-size: 13px;
     min-height: 44px;
-    background: white;
-    border: 1px solid #bbb;
 }
 
 .catalog-filter-button.active {
-    background: #dfeeff;
-    border-color: #5d8ed8;
+    background: linear-gradient(180deg, #eef5ff 0%, #dceaff 100%);
+    border-color: #7da6e6;
     color: #174a8b;
     font-weight: 600;
+    box-shadow: inset 0 0 0 1px rgba(93, 142, 216, 0.15);
 }
 
 #empty-catalog-view {
@@ -288,25 +287,24 @@ button {
 
 #empty-filter-help {
     margin-top: 12px;
-    padding: 12px;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 6px;
     font-size: 14px;
     line-height: 1.5;
 }
 
 #admin-panel {
     margin-top: 16px;
-    padding: 10px;
-    background: #fff8e8;
-    border: 1px solid #e0c36c;
-    border-radius: 6px;
+    background: linear-gradient(180deg, rgba(255, 250, 238, 0.98) 0%, rgba(255, 244, 214, 0.96) 100%);
+    border-color: #e6d19a;
 }
 
 #admin-panel h3 {
-    margin: 0 0 8px 0;
-    font-size: 14px;
+    color: #6b4e08;
+}
+
+#upload-status {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #314760;
 }
 
 .admin-link-button {
@@ -317,10 +315,13 @@ button {
     box-sizing: border-box;
     text-align: center;
     text-decoration: none;
-    color: black;
-    background: white;
-    border: 1px solid #bbb;
+    color: #1f3552;
+    background: linear-gradient(180deg, #ffffff 0%, #f3f7fc 100%);
+    border: 1px solid #c7d2e2;
+    border-radius: 10px;
     font-size: 16px;
+    box-shadow: 0 1px 2px rgba(25, 45, 72, 0.08);
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .admin-page {

@@ -30,7 +30,7 @@
 
     <!-- RIGHT: CONTROL PANEL -->
     <div class="right-panel">
-        <div id="user-panel">
+        <div id="user-panel" class="right-panel-card">
             <h3>Active User</h3>
             <form action="{{ url_for('set_user') }}" method="post">
                 <input type="hidden" name="next_url" value="{{ request.path }}">
@@ -75,7 +75,7 @@
             {% endif %}
         </div>
 
-        <div id="catalog-filter-panel">
+        <div id="catalog-filter-panel" class="right-panel-card">
             <h3>Catalog View</h3>
             <div id="catalog-filter-buttons">
                 <button id="filter-all"
@@ -101,7 +101,7 @@
         {% if galaxy %}
         <h2>{{ galaxy.cluster }}</h2>
 
-        <div id="cluster-info-panel">
+        <div id="cluster-info-panel" class="right-panel-card">
             <div id="cluster-meta">
                 Galaxy {{ index+1 }} / {{ total }} <br>
                 z = {{ galaxy.redshift }}
@@ -141,7 +141,7 @@
         <button id="download-results">Download Results CSV</button>
         <button id="zoom-reset">Zoom 1</button>
 
-        <div id="shortcuts">
+        <div id="shortcuts" class="right-panel-card">
             <h3>Controls</h3>
 
             <ul>
@@ -157,12 +157,12 @@
         </div>
         {% else %}
         <h2>No objects in this view</h2>
-        <div id="empty-filter-help">
+        <div id="empty-filter-help" class="right-panel-card">
             Switch back to <b>All</b>, or choose a different user to review their skipped or flagged objects.
         </div>
         {% endif %}
 
-        <div id="upload">
+        <div id="upload" class="right-panel-card">
             <h3>Load Custom Catalog</h3>
             <input type="file" id="catalog-file" accept=".csv">
             <button id="upload-btn">Upload</button>
@@ -171,7 +171,7 @@
 
         <button id="reset-catalog">Use Full Catalog</button>
 
-                <div id="admin-panel">
+                <div id="admin-panel" class="right-panel-card">
             <h3>Admin Tools</h3>
             <button id="download-all-results">Download All Results CSV</button>
             <a id="review-all-results"

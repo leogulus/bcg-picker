@@ -395,6 +395,81 @@ class BCGPickerAppTests(unittest.TestCase):
         self.assertIn("No objects in this view", page)
         self.assertIn("No objects match this filter", page)
 
+    def test_download_skipped_catalog_subset_returns_catalog_csv(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0001",
+                "image": "cluster001.jpg",
+                "skipped": True,
+                "index": 1,
+            },
+        )
+
+        response = self.client.get("/download_catalog_subset/skipped")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertIn(
+            "attachment; filename=tester_skipped_catalog.csv",
+            response.headers["Content-Disposition"],
+        )
+
+        rows = list(csv.DictReader(io.StringIO(response.get_data(as_text=True))))
+        self.assertEqual(rows, [{
+            "cluster": "Cluster0001",
+            "image": "cluster001.jpg",
+            "ra": "6.5",
+            "dec": "-32.6",
+            "redshift": "0.43",
+            "pixscale": "0.262",
+        }])
+
+    def test_download_flagged_catalog_subset_returns_catalog_csv(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "flagged": True,
+                "index": 0,
+            },
+        )
+
+        response = self.client.get("/download_catalog_subset/flagged")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertIn(
+            "attachment; filename=tester_flagged_catalog.csv",
+            response.headers["Content-Disposition"],
+        )
+
+        rows = list(csv.DictReader(io.StringIO(response.get_data(as_text=True))))
+        self.assertEqual(rows, [{
+            "cluster": "Cluster0000",
+            "image": "cluster000.jpg",
+            "ra": "3.1",
+            "dec": "-32.9",
+            "redshift": "0.25",
+            "pixscale": "0.262",
+        }])
+
+    def test_download_catalog_subset_requires_active_user(self):
+        with self.client.session_transaction() as session:
+            session.pop("username", None)
+
+        response = self.client.get("/download_catalog_subset/skipped")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Set a user", response.get_json()["message"])
+
+    def test_download_catalog_subset_returns_404_when_empty(self):
+        response = self.client.get("/download_catalog_subset/skipped")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("No skipped objects available yet", response.get_json()["message"])
+
     def test_index_shows_current_user_summary(self):
         self.client.post(
             "/save",

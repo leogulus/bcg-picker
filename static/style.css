@@ -260,6 +260,19 @@ button:active,
     gap: 8px;
 }
 
+#catalog-export-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+#catalog-export-buttons button {
+    margin-top: 0;
+    font-size: 13px;
+    min-height: 44px;
+}
+
 .catalog-filter-button {
     margin-top: 0;
     font-size: 13px;

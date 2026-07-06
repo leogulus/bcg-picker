@@ -94,6 +94,12 @@
                     Flagged
                 </button>
             </div>
+            {% if current_user %}
+            <div id="catalog-export-buttons">
+                <button id="download-skipped-catalog" type="button">Download Skip / Unsure Catalog</button>
+                <button id="download-flagged-catalog" type="button">Download Flagged Catalog</button>
+            </div>
+            {% endif %}
         </div>
 
         <span id="status"></span>

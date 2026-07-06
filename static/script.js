@@ -25,6 +25,8 @@ const catalogFileInput = document.getElementById("catalog-file");
 const filterAllButton = document.getElementById("filter-all");
 const filterSkippedButton = document.getElementById("filter-skipped");
 const filterFlaggedButton = document.getElementById("filter-flagged");
+const downloadSkippedCatalogButton = document.getElementById("download-skipped-catalog");
+const downloadFlaggedCatalogButton = document.getElementById("download-flagged-catalog");
 
 function pixelToRaDec(x, y, ra0, dec0, pixscale) {
 
@@ -202,6 +204,28 @@ async function applyCatalogFilter(filterMode) {
 
         setActiveCatalogFilter(result.filter_mode);
         window.location.href = result.next_url;
+    } catch (error) {
+        statusText.textContent = error.message;
+    }
+}
+
+async function downloadCatalogSubset(filterMode) {
+    try {
+        const response = await fetch(`/download_catalog_subset/${filterMode}`);
+        if (!response.ok) {
+            const result = await response.json();
+            throw new Error(result.message || "Download failed");
+        }
+
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = `${currentUser}_${filterMode}_catalog.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(downloadUrl);
     } catch (error) {
         statusText.textContent = error.message;
     }
@@ -539,5 +563,17 @@ if (filterSkippedButton) {
 if (filterFlaggedButton) {
     filterFlaggedButton.onclick = function() {
         applyCatalogFilter("flagged");
+    };
+}
+
+if (downloadSkippedCatalogButton) {
+    downloadSkippedCatalogButton.onclick = function() {
+        downloadCatalogSubset("skipped");
+    };
+}
+
+if (downloadFlaggedCatalogButton) {
+    downloadFlaggedCatalogButton.onclick = function() {
+        downloadCatalogSubset("flagged");
     };
 }

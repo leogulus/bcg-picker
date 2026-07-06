@@ -24,6 +24,7 @@ DATABASE_SCHEMA = os.path.join(BASE_DIR, "schema.sql")
 DEFAULT_CATALOG_SOURCE = "default"
 UPLOADED_CATALOG_SOURCE = "uploaded"
 CATALOG_FIELDS = {"cluster", "image", "ra", "dec", "redshift", "pixscale"}
+CATALOG_FIELDNAMES = ["cluster", "image", "ra", "dec", "redshift", "pixscale"]
 RESULTS_FIELDNAMES = ["cluster", "image", "x", "y", "ra", "dec", "skipped", "flagged"]
 ALL_RESULTS_FIELDNAMES = ["username", "cluster", "image", "x", "y", "ra", "dec", "skipped", "flagged", "updated_at"]
 SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "bcg-picker-dev-secret")
@@ -419,6 +420,48 @@ def create_app(test_config=None):
             mimetype="text/csv",
             headers={
                 "Content-Disposition": f"attachment; filename={username}_results.csv"
+            },
+        )
+
+    @app.route("/download_catalog_subset/<filter_mode>")
+    def download_catalog_subset(filter_mode):
+        username = get_current_username()
+        if not username:
+            return jsonify({
+                "status": "error",
+                "message": "Set a user before downloading a filtered catalog"
+            }), 400
+
+        if filter_mode not in {CATALOG_FILTER_SKIPPED, CATALOG_FILTER_FLAGGED}:
+            return jsonify({
+                "status": "error",
+                "message": "Unsupported catalog subset"
+            }), 400
+
+        rows = fetch_catalog_rows_for_user_filter(
+            username,
+            filter_mode,
+            current_app.config["CURRENT_CATALOG_SOURCE"],
+        )
+        if not rows:
+            label = "skipped" if filter_mode == CATALOG_FILTER_SKIPPED else "flagged"
+            return jsonify({
+                "status": "error",
+                "message": f"No {label} objects available yet for this user"
+            }), 404
+
+        buffer = io.StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=CATALOG_FIELDNAMES)
+        writer.writeheader()
+        writer.writerows(rows)
+
+        return Response(
+            buffer.getvalue(),
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": (
+                    f"attachment; filename={username}_{filter_mode}_catalog.csv"
+                )
             },
         )
 

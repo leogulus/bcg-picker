@@ -5,31 +5,16 @@ from flask import send_from_directory, url_for
 import csv
 import io
 import os
-import sqlite3
-
-import click
 
 import csv_store
 from csv_store import ensure_csv_storage_dirs, list_result_usernames
-from db import ensure_db, export_all_annotations, fetch_catalog_rows
-from db import get_annotation_for_user as db_get_annotation_for_user
-from db import get_or_create_user
-from db import get_user_progress as db_get_user_progress
-from db import init_app as init_db_app, list_usernames, replace_catalog_rows
-from db import get_next_unannotated_cluster as db_get_next_unannotated_cluster
-from db import reset_user_annotations as db_reset_user_annotations
-from db import upsert_annotation as db_upsert_annotation
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CATALOG_FILE = os.path.join(BASE_DIR, "data", "catalog.csv")
 UPLOADED_CATALOG_FILE = os.path.join(BASE_DIR, "data", "uploaded_catalog.csv")
-DATABASE_PATH = os.path.join(BASE_DIR, "data", "bcg_picker.sqlite3")
-DATABASE_SCHEMA = os.path.join(BASE_DIR, "schema.sql")
 RESULTS_DIR = os.path.join(BASE_DIR, "data", "results")
 IMPORTS_DIR = os.path.join(BASE_DIR, "data", "imports")
 COMBINED_DIR = os.path.join(BASE_DIR, "data", "combined")
-DEFAULT_CATALOG_SOURCE = "default"
-UPLOADED_CATALOG_SOURCE = "uploaded"
 CATALOG_FIELDS = {"cluster", "image", "ra", "dec", "redshift", "pixscale"}
 CATALOG_FIELDNAMES = ["cluster", "image", "ra", "dec", "redshift", "pixscale"]
 RESULTS_FIELDNAMES = csv_store.RESULTS_FIELDNAMES
@@ -95,23 +80,7 @@ def set_catalog(app, rows):
 
 
 def load_runtime_catalog(app):
-    fallback_rows = load_catalog(app.config["DEFAULT_CATALOG_FILE"])
-
-    if not os.path.exists(app.config["DATABASE_PATH"]):
-        return fallback_rows
-
-    try:
-        with app.app_context():
-            database_rows = fetch_catalog_rows(app.config["CURRENT_CATALOG_SOURCE"])
-    except sqlite3.Error:
-        return fallback_rows
-
-    if not database_rows:
-        with app.app_context():
-            replace_catalog_rows(fallback_rows, app.config["DEFAULT_CATALOG_SOURCE"])
-            database_rows = fetch_catalog_rows(app.config["DEFAULT_CATALOG_SOURCE"])
-
-    return database_rows or fallback_rows
+    return load_catalog(app.config["DEFAULT_CATALOG_FILE"])
 
 
 def get_current_username():
@@ -126,12 +95,7 @@ def get_catalog_filter_mode():
 
 
 def get_existing_usernames():
-    csv_usernames = list_result_usernames(current_app.config["RESULTS_DIR"])
-    db_usernames = list_usernames()
-    merged = {username.lower(): username for username in db_usernames}
-    for username in csv_usernames:
-        merged.setdefault(username.lower(), username)
-    return sorted(merged.values(), key=lambda value: (value.lower(), value))
+    return list_result_usernames(current_app.config["RESULTS_DIR"])
 
 
 def get_catalog_maps(rows):
@@ -240,14 +204,9 @@ def create_app(test_config=None):
     app = Flask(__name__, static_folder="static", static_url_path="/static")
     app.config["DEFAULT_CATALOG_FILE"] = DEFAULT_CATALOG_FILE
     app.config["UPLOADED_CATALOG_FILE"] = UPLOADED_CATALOG_FILE
-    app.config["DATABASE_PATH"] = DATABASE_PATH
-    app.config["DATABASE_SCHEMA"] = DATABASE_SCHEMA
     app.config["RESULTS_DIR"] = RESULTS_DIR
     app.config["IMPORTS_DIR"] = IMPORTS_DIR
     app.config["COMBINED_DIR"] = COMBINED_DIR
-    app.config["DEFAULT_CATALOG_SOURCE"] = DEFAULT_CATALOG_SOURCE
-    app.config["UPLOADED_CATALOG_SOURCE"] = UPLOADED_CATALOG_SOURCE
-    app.config["CURRENT_CATALOG_SOURCE"] = DEFAULT_CATALOG_SOURCE
     app.config["SECRET_KEY"] = SECRET_KEY
     if test_config:
         app.config.update(test_config)
@@ -256,36 +215,7 @@ def create_app(test_config=None):
         app.config["IMPORTS_DIR"],
         app.config["COMBINED_DIR"],
     )
-    init_db_app(app)
-    with app.app_context():
-        ensure_db()
     set_catalog(app, load_runtime_catalog(app))
-
-    @app.cli.command("import-catalog")
-    @click.option("--path", "catalog_path", default=None, help="Path to a catalog CSV file.")
-    @click.option("--source", "catalog_source", default=DEFAULT_CATALOG_SOURCE, help="Catalog source name in SQLite.")
-    def import_catalog_command(catalog_path, catalog_source):
-        source_path = catalog_path or current_app.config["DEFAULT_CATALOG_FILE"]
-        rows = load_catalog(source_path)
-        replace_catalog_rows(rows, catalog_source)
-        click.echo(f"Imported {len(rows)} clusters into SQLite source '{catalog_source}'.")
-
-    @app.cli.command("migrate-sqlite-to-csv")
-    def migrate_sqlite_to_csv_command():
-        rows = export_all_annotations()
-        grouped = {}
-        for row in rows:
-            grouped.setdefault(row["username"], []).append(row)
-
-        for username, username_rows in grouped.items():
-            csv_store.write_results_rows(
-                csv_store.build_results_path(current_app.config["RESULTS_DIR"], username),
-                username_rows,
-            )
-
-        click.echo(
-            f"Migrated {len(rows)} annotations across {len(grouped)} users into CSV results files."
-        )
 
     @app.route("/set_user", methods=["POST"])
     def set_user():
@@ -298,7 +228,6 @@ def create_app(test_config=None):
                 "message": "Choose an existing user or enter a new username"
             }), 400
 
-        get_or_create_user(username)
         session["username"] = username
 
         next_url = request.form.get("next_url")
@@ -319,8 +248,6 @@ def create_app(test_config=None):
 
         try:
             rows = load_catalog(upload_path)
-            replace_catalog_rows(rows, current_app.config["UPLOADED_CATALOG_SOURCE"])
-            current_app.config["CURRENT_CATALOG_SOURCE"] = current_app.config["UPLOADED_CATALOG_SOURCE"]
             set_catalog(current_app, rows)
         except ValueError as error:
             return jsonify({"status": "error", "message": str(error)}), 400
@@ -380,8 +307,7 @@ def create_app(test_config=None):
 
     @app.route("/reset_catalog", methods=["POST"])
     def reset_catalog():
-        current_app.config["CURRENT_CATALOG_SOURCE"] = current_app.config["DEFAULT_CATALOG_SOURCE"]
-        set_catalog(current_app, load_runtime_catalog(current_app))
+        set_catalog(current_app, load_catalog(current_app.config["DEFAULT_CATALOG_FILE"]))
 
         return jsonify({
             "status": "ok",
@@ -575,7 +501,6 @@ def create_app(test_config=None):
             }), 400
 
         csv_store.reset_annotations(current_app.config["RESULTS_DIR"], username)
-        db_reset_user_annotations(username)
         return jsonify({
             "status": "ok",
             "username": username,
@@ -659,8 +584,6 @@ def create_app(test_config=None):
             get_catalog(),
         )
         if cluster_name is None:
-            cluster_name = db_get_next_unannotated_cluster(username)
-        if cluster_name is None:
             return jsonify({
                 "status": "ok",
                 "next_url": None,
@@ -708,8 +631,6 @@ def create_app(test_config=None):
             username,
             cluster_name,
         )
-        if existing_row is None:
-            existing_row = db_get_annotation_for_user(cluster_name, username)
         updated = existing_row is not None
 
         annotation = {
@@ -725,7 +646,6 @@ def create_app(test_config=None):
 
         try:
             csv_store.upsert_annotation(current_app.config["RESULTS_DIR"], username, annotation)
-            db_upsert_annotation(username, annotation)
         except ValueError as error:
             return jsonify({"status": "error", "message": str(error)}), 400
 
@@ -736,8 +656,6 @@ def create_app(test_config=None):
                 username,
                 get_catalog(),
             )
-            if next_cluster is None:
-                next_cluster = db_get_next_unannotated_cluster(username)
         else:
             current_index = data.get("index")
             if not isinstance(current_index, int):
@@ -763,8 +681,6 @@ def create_app(test_config=None):
             username,
             cluster,
         )
-        if row is None:
-            row = db_get_annotation_for_user(cluster, username)
         if row is not None:
             if csv_store.parse_bool(row["skipped"]):
                 return jsonify({
@@ -797,8 +713,6 @@ def create_app(test_config=None):
         username = get_current_username()
         if username:
             progress_data = csv_store.get_user_progress(current_app.config["RESULTS_DIR"], username)
-            if progress_data == {"done": 0, "skipped": 0, "flagged": 0}:
-                progress_data = db_get_user_progress(username)
             done = progress_data["done"]
             skipped = progress_data["skipped"]
             flagged = progress_data["flagged"]

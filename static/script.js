@@ -32,20 +32,25 @@ const downloadSkippedCatalogButton = document.getElementById("download-skipped-c
 const downloadFlaggedCatalogButton = document.getElementById("download-flagged-catalog");
 
 function pixelToRaDec(x, y, ra0, dec0, pixscale) {
+    const numericX = Number(x);
+    const numericY = Number(y);
+    const numericRa0 = Number(ra0);
+    const numericDec0 = Number(dec0);
+    const numericPixscale = Number(pixscale);
 
     const x0 = img.naturalWidth / 2;
     const y0 = img.naturalHeight / 2;
 
-    const dx_arcsec = -(x - x0) * pixscale;
-    const dy_arcsec = -(y - y0) * pixscale;
+    const dx_arcsec = -(numericX - x0) * numericPixscale;
+    const dy_arcsec = -(numericY - y0) * numericPixscale;
 
     const ra =
-        ra0 +
+        numericRa0 +
         dx_arcsec /
-        (3600 * Math.cos(dec0 * Math.PI / 180));
+        (3600 * Math.cos(numericDec0 * Math.PI / 180));
 
     const dec =
-        dec0 +
+        numericDec0 +
         dy_arcsec / 3600;
 
     return { ra, dec };
@@ -66,12 +71,14 @@ function renderMarker() {
 }
 
 function updateMarker(x, y) {
+    const numericX = Number(x);
+    const numericY = Number(y);
 
     const { ra, dec } =
-        pixelToRaDec(x, y, ra0, dec0, pixscale);
+        pixelToRaDec(numericX, numericY, ra0, dec0, pixscale);
 
-    xValue.textContent = x.toFixed(1);
-    yValue.textContent = y.toFixed(1);
+    xValue.textContent = numericX.toFixed(1);
+    yValue.textContent = numericY.toFixed(1);
 
     raValue.textContent = ra.toFixed(8);
     decValue.textContent = dec.toFixed(8);
@@ -79,8 +86,8 @@ function updateMarker(x, y) {
     currentClick = {
         cluster,
         image,
-        x,
-        y,
+        x: numericX,
+        y: numericY,
         ra,
         dec
     };

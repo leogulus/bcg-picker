@@ -2,7 +2,13 @@
 
 BCG Picker is a lightweight Flask app for interactively identifying the Brightest Cluster Galaxy (BCG) in Legacy Survey image cutouts.
 
-It uses SQLite for local catalog storage and per-user annotations, so multiple people can work on the same cluster set while keeping separate results.
+The app now uses a **CSV-first workflow** for normal use:
+
+- one shared catalog CSV
+- one results CSV per user
+- one generated combined CSV for team review
+
+This makes the workflow easier to inspect, share, and use across different machines.
 
 ## Screenshot
 
@@ -19,9 +25,10 @@ It uses SQLite for local catalog storage and per-user annotations, so multiple p
 - Active-user progress tracking
 - Jump to the next unannotated cluster for the current user
 - Filter the catalog view to `All`, `Skip / Unsure`, or `Flagged`
-- Download the current user's partial annotation results at any time
+- Download the current user's full results CSV at any time
 - Download reviewer worklists for the current user's skipped or flagged objects
-- Download all users' raw annotations from the admin panel
+- Import another reviewer's results CSV
+- Generate and download combined results across all reviewers
 - Review cross-user disagreements with overlaid markers on the same image
 - Upload a custom catalog and reset back to the full default catalog
 
@@ -61,11 +68,14 @@ http://127.0.0.1:5000/
 ```text
 bcg-picker/
 ├── app.py
-├── db.py
+├── csv_store.py
 ├── data/
 │   ├── catalog.csv
-│   └── bcg_picker.sqlite3
+│   ├── results/
+│   ├── imports/
+│   └── combined/
 ├── images/
+├── screenshots/
 ├── static/
 │   ├── script.js
 │   └── style.css
@@ -75,14 +85,19 @@ bcg-picker/
 │   └── index.html
 ├── tests/
 │   └── test_app.py
-├── schema.sql
 ├── requirements.txt
 └── README.md
 ```
 
-## Input Catalog
+## Core Data Files
 
-The catalog must contain these columns:
+### Shared catalog
+
+```text
+data/catalog.csv
+```
+
+Required columns:
 
 ```text
 cluster,image,ra,dec,redshift,pixscale
@@ -96,33 +111,41 @@ Cluster0001,cluster000.jpg,3.17611983,-32.97124401,0.10,0.262
 Cluster0002,cluster001.jpg,12.33456000,-41.12345000,0.56,0.262
 ```
 
-Image filenames must correspond to files in `images/`.
+### Per-user results
 
-The current image set uses a pixel scale of `0.262` arcsec/pixel.
+Each user is stored in a separate file:
 
-## SQLite Setup
-
-The app uses SQLite to store:
-
-- catalog rows
-- user records
-- per-user annotations
-
-Initialize the database with:
-
-```bash
-flask --app app init-db
+```text
+data/results/<sanitized_username>_results.csv
 ```
 
-Import the default catalog into SQLite with:
+Example:
 
-```bash
-flask --app app import-catalog
+```text
+data/results/john_smith_results.csv
 ```
 
-If the database is empty, the app can also seed the default catalog automatically at startup.
+Stored columns:
 
-SQLite data is stored in `data/bcg_picker.sqlite3`.
+```text
+username,cluster,image,x,y,ra,dec,skipped,flagged,updated_at
+```
+
+### Combined results
+
+Generated on demand:
+
+```text
+data/combined/all_results.csv
+```
+
+### Imported reviewer files
+
+Imported reviewer CSVs are copied into:
+
+```text
+data/imports/
+```
 
 ## Main Workflow
 
@@ -158,6 +181,22 @@ Typical use:
 
 If a filter has no matching objects for the current user, the app shows an empty-state message instead of a broken page.
 
+## Results Export
+
+`Download Results CSV` exports the active user’s file in the import-ready format:
+
+```text
+username,cluster,image,x,y,ra,dec,skipped,flagged,updated_at
+```
+
+The filename is based on the sanitized username, for example:
+
+```text
+alice_results.csv
+```
+
+Saving an annotation for the same user and cluster overwrites that user’s previous row for that object.
+
 ## Reviewer Worklist Export
 
 The `Catalog View` panel also includes:
@@ -180,45 +219,26 @@ taweewat_flagged_catalog.csv
 
 Another reviewer can load one of these files through `Load Custom Catalog` and work only on that subset.
 
-## Results Export
+## Import Reviewer Results
 
-Downloaded per-user annotation exports use columns:
+The admin panel includes an **Import Reviewer Results CSV** tool.
 
-```text
-cluster,image,x,y,ra,dec,skipped,flagged
-```
+Expected behavior:
 
-Example:
+- validates the uploaded CSV columns
+- requires exactly one username per uploaded file
+- refuses to overwrite an existing local user file unless you confirm replacement
 
-```csv
-cluster,image,x,y,ra,dec,skipped,flagged
-Cluster0001,cluster000.jpg,479.6,489.3,3.17581,-32.97221,False,False
-Cluster0002,,,,,,True,False
-Cluster0003,,,,,,False,True
-```
+This is the main workflow for bringing collaborator results from another machine into your local copy.
 
-Saving an annotation for the same user and cluster overwrites that user's previous entry.
+## Combined Results and Admin Review
 
-The filename is based on the current user, for example:
-
-```text
-alice_results.csv
-```
-
-The admin export includes:
-
-```text
-username,cluster,image,x,y,ra,dec,skipped,flagged,updated_at
-```
-
-## Admin Review Tools
-
-The right-side admin panel includes:
+The admin panel includes:
 
 - `Download All Results CSV`
 - `Review All Results`
 
-The combined admin export is downloaded as:
+The combined export is generated from all files in `data/results/` and downloaded as:
 
 ```text
 all_results.csv
@@ -247,15 +267,31 @@ with `RA` and `Dec` both in degrees. This approximation is appropriate here beca
 
 If one person skips, one person flags, or one person marks while another skips/flags, that cluster is treated as disagreement.
 
+## Team Workflow
+
+### For collaborators
+
+1. Pull or install the repo on your machine.
+2. Choose your username in the app.
+3. Annotate clusters.
+4. Click `Download Results CSV`.
+5. Send that CSV back to the project lead.
+
+### For the project lead
+
+1. Receive collaborator CSV files.
+2. Import them through `Import Reviewer Results CSV`.
+3. Download `All Results CSV` when needed.
+4. Use `Review All Results` to inspect agreement/disagreement.
+5. Export skip-only or flagged-only catalogs for follow-up review.
+
 ## Custom Catalogs
 
 You can upload a custom CSV catalog as long as it uses the same column names as the default catalog and references images present in `images/`.
 
 Use `Use Full Catalog` in the UI to restore the default dataset.
 
-Custom and default catalogs are tracked as separate catalog sources in SQLite.
-
-`data/uploaded_catalog.csv` is now treated as a local runtime file and is ignored by Git.
+`data/uploaded_catalog.csv` is treated as a local runtime file and is ignored by Git.
 
 ## Navigation
 
@@ -296,7 +332,7 @@ python -m unittest discover -s tests
 You can also do a quick syntax check with:
 
 ```bash
-python -m py_compile app.py db.py tests/test_app.py
+python -m py_compile app.py csv_store.py tests/test_app.py
 ```
 
 ## Notes
@@ -305,4 +341,4 @@ python -m py_compile app.py db.py tests/test_app.py
 - Images are never modified by the app.
 - RA/Dec is derived from the stored marker position and the catalog center coordinates.
 - The current user must be set before saving, skipping, flagging, jumping, resetting results, or downloading user-specific files.
-- SQLite is the local working database, but CSV exports are the recommended way to share reviewer worklists right now.
+- Runtime data folders such as `data/results/`, `data/imports/`, and `data/combined/` are ignored by Git.

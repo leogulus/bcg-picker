@@ -21,14 +21,9 @@ class BCGPickerAppTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.catalog_path = os.path.join(self.temp_dir.name, "catalog.csv")
         self.upload_path = os.path.join(self.temp_dir.name, "uploaded_catalog.csv")
-        self.database_path = os.path.join(self.temp_dir.name, "bcg_picker.sqlite3")
         self.results_dir = os.path.join(self.temp_dir.name, "results")
         self.imports_dir = os.path.join(self.temp_dir.name, "imports")
         self.combined_dir = os.path.join(self.temp_dir.name, "combined")
-        self.schema_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "schema.sql",
-        )
 
         with open(self.catalog_path, "w", newline="") as file_obj:
             writer = csv.DictWriter(
@@ -61,8 +56,6 @@ class BCGPickerAppTests(unittest.TestCase):
             "TESTING": True,
             "DEFAULT_CATALOG_FILE": self.catalog_path,
             "UPLOADED_CATALOG_FILE": self.upload_path,
-            "DATABASE_PATH": self.database_path,
-            "DATABASE_SCHEMA": self.schema_path,
             "RESULTS_DIR": self.results_dir,
             "IMPORTS_DIR": self.imports_dir,
             "COMBINED_DIR": self.combined_dir,
@@ -70,12 +63,6 @@ class BCGPickerAppTests(unittest.TestCase):
         })
         app_module.set_catalog(self.app, app_module.load_catalog(self.catalog_path))
         self.client = self.app.test_client()
-
-        with self.app.app_context():
-            app_module.replace_catalog_rows(
-                app_module.load_catalog(self.catalog_path),
-                self.app.config["DEFAULT_CATALOG_SOURCE"],
-            )
 
         with self.client.session_transaction() as session:
             session["username"] = "tester"
@@ -385,31 +372,6 @@ class BCGPickerAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Cluster0000", page)
-
-    def test_migrate_sqlite_to_csv_command_writes_results_files(self):
-        self.client.post(
-            "/save",
-            json={
-                "cluster": "Cluster0000",
-                "image": "cluster000.jpg",
-                "x": 100.5,
-                "y": 120.5,
-                "ra": 3.123,
-                "dec": -32.987,
-                "index": 0,
-            },
-        )
-
-        os.remove(os.path.join(self.results_dir, "tester_results.csv"))
-
-        runner = self.app.test_cli_runner()
-        result = runner.invoke(args=["migrate-sqlite-to-csv"])
-
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Migrated 1 annotations", result.output)
-        self.assertTrue(
-            os.path.exists(os.path.join(self.results_dir, "tester_results.csv"))
-        )
 
     def test_index_lists_users_from_results_directory(self):
         path = os.path.join(self.results_dir, "john_smith_results.csv")
@@ -838,7 +800,7 @@ class BCGPickerAppTests(unittest.TestCase):
         self.assertIn('id="reset-user-results"', page)
         self.assertIn('id="flag-interesting"', page)
 
-    def test_index_lists_known_users_in_picker_only(self):
+    def test_index_lists_result_backed_users_in_picker_only(self):
         self.client.post(
             "/set_user",
             data={
@@ -853,12 +815,23 @@ class BCGPickerAppTests(unittest.TestCase):
                 "selected_username": "",
             },
         )
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 100.5,
+                "y": 120.5,
+                "ra": 3.123,
+                "dec": -32.876,
+            },
+        )
 
         response = self.client.get("/0")
         page = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('option value="tester"', page)
+        self.assertNotIn('option value="tester"', page)
         self.assertIn('option value="second-user"', page)
         self.assertNotIn("User Progress", page)
         self.assertNotIn("second-user —", page)

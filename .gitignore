@@ -9,9 +9,7 @@ __pycache__/
 venv/
 .env/
 
-# Generated annotation results
-data/results.csv
-data/bcg_picker.sqlite3
+# Runtime CSV data
 data/uploaded_catalog.csv
 data/results/
 data/imports/

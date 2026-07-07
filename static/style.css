@@ -320,6 +320,30 @@ button:active,
     color: #314760;
 }
 
+#import-results-panel {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e1e7f0;
+}
+
+#import-results-panel label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #314760;
+}
+
+#import-results-panel input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#import-results-status {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #314760;
+}
+
 .admin-link-button {
     display: block;
     width: 100%;

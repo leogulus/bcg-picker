@@ -183,6 +183,12 @@
             <a id="review-all-results"
                class="admin-link-button"
                href="{{ url_for('admin_review') }}">Review All Results</a>
+            <div id="import-results-panel">
+                <label for="results-file">Import Reviewer Results CSV</label>
+                <input type="file" id="results-file" accept=".csv">
+                <button id="import-results-btn" type="button">Import Results CSV</button>
+                <div id="import-results-status"></div>
+            </div>
         </div>
 
     </div>

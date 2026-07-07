@@ -22,6 +22,9 @@ const uploadButton = document.getElementById("upload-btn");
 const resetCatalogButton = document.getElementById("reset-catalog");
 const uploadStatus = document.getElementById("upload-status");
 const catalogFileInput = document.getElementById("catalog-file");
+const resultsFileInput = document.getElementById("results-file");
+const importResultsButton = document.getElementById("import-results-btn");
+const importResultsStatus = document.getElementById("import-results-status");
 const filterAllButton = document.getElementById("filter-all");
 const filterSkippedButton = document.getElementById("filter-skipped");
 const filterFlaggedButton = document.getElementById("filter-flagged");
@@ -575,5 +578,50 @@ if (downloadSkippedCatalogButton) {
 if (downloadFlaggedCatalogButton) {
     downloadFlaggedCatalogButton.onclick = function() {
         downloadCatalogSubset("flagged");
+    };
+}
+
+if (importResultsButton) {
+    importResultsButton.onclick = async function() {
+        if (!resultsFileInput.files.length) {
+            importResultsStatus.textContent = "Please select a reviewer results CSV.";
+            return;
+        }
+
+        const submitImport = async function(replaceExisting) {
+            const formData = new FormData();
+            formData.append("file", resultsFileInput.files[0]);
+            if (replaceExisting) {
+                formData.append("replace_existing", "true");
+            }
+
+            const response = await fetch("/import_results", {
+                method: "POST",
+                body: formData
+            });
+            const result = await response.json();
+
+            if (response.status === 409 && result.collision) {
+                const confirmed = window.confirm(
+                    `Results for "${result.username}" already exist. Replace the existing local file?`
+                );
+                if (!confirmed) {
+                    importResultsStatus.textContent = "Import canceled.";
+                    return;
+                }
+                await submitImport(true);
+                return;
+            }
+
+            importResultsStatus.textContent = response.ok
+                ? `Imported ${result.rows_imported} rows for ${result.username}${result.replaced ? " (replaced existing file)" : ""}.`
+                : (result.message || "Import failed");
+        };
+
+        try {
+            await submitImport(false);
+        } catch (error) {
+            importResultsStatus.textContent = error.message;
+        }
     };
 }

@@ -5,6 +5,8 @@ import os
 import tempfile
 import unittest
 
+import csv_store
+
 try:
     app_module = importlib.import_module("app")
     IMPORT_ERROR = None
@@ -20,6 +22,9 @@ class BCGPickerAppTests(unittest.TestCase):
         self.catalog_path = os.path.join(self.temp_dir.name, "catalog.csv")
         self.upload_path = os.path.join(self.temp_dir.name, "uploaded_catalog.csv")
         self.database_path = os.path.join(self.temp_dir.name, "bcg_picker.sqlite3")
+        self.results_dir = os.path.join(self.temp_dir.name, "results")
+        self.imports_dir = os.path.join(self.temp_dir.name, "imports")
+        self.combined_dir = os.path.join(self.temp_dir.name, "combined")
         self.schema_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
             "schema.sql",
@@ -58,6 +63,9 @@ class BCGPickerAppTests(unittest.TestCase):
             "UPLOADED_CATALOG_FILE": self.upload_path,
             "DATABASE_PATH": self.database_path,
             "DATABASE_SCHEMA": self.schema_path,
+            "RESULTS_DIR": self.results_dir,
+            "IMPORTS_DIR": self.imports_dir,
+            "COMBINED_DIR": self.combined_dir,
             "SECRET_KEY": "test-secret",
         })
         app_module.set_catalog(self.app, app_module.load_catalog(self.catalog_path))
@@ -237,6 +245,341 @@ class BCGPickerAppTests(unittest.TestCase):
 
         with self.client.session_transaction() as session:
             self.assertEqual(session["username"], "tester")
+
+    def test_sanitize_username_builds_safe_results_filename(self):
+        self.assertEqual(
+            csv_store.build_results_filename("John Smith"),
+            "john_smith_results.csv",
+        )
+        self.assertEqual(
+            csv_store.build_results_filename(" Dr. A/B "),
+            "dr._a_b_results.csv",
+        )
+
+    def test_build_results_filename_rejects_empty_username(self):
+        with self.assertRaises(ValueError):
+            csv_store.build_results_filename("   ")
+
+    def test_list_result_usernames_reads_embedded_username(self):
+        path = os.path.join(self.results_dir, "john_smith_results.csv")
+        csv_store.write_results_rows(path, [{
+            "username": "John Smith",
+            "cluster": "Cluster0000",
+            "image": "cluster000.jpg",
+            "x": "1.0",
+            "y": "2.0",
+            "ra": "3.0",
+            "dec": "4.0",
+            "skipped": "False",
+            "flagged": "False",
+            "updated_at": "2026-07-07T00:00:00",
+        }])
+
+        self.assertEqual(
+            csv_store.list_result_usernames(self.results_dir),
+            ["John Smith"],
+        )
+
+    def test_save_creates_sanitized_results_file(self):
+        self.client.post(
+            "/set_user",
+            data={
+                "username": "John Smith",
+                "selected_username": "",
+            },
+        )
+
+        response = self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 100.5,
+                "y": 120.5,
+                "ra": 3.123,
+                "dec": -32.987,
+                "index": 0,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            os.path.exists(os.path.join(self.results_dir, "john_smith_results.csv"))
+        )
+
+    def test_progress_reads_from_csv_results(self):
+        csv_store.write_results_rows(
+            os.path.join(self.results_dir, "tester_results.csv"),
+            [{
+                "username": "tester",
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": "100.5",
+                "y": "120.5",
+                "ra": "3.123",
+                "dec": "-32.987",
+                "skipped": "False",
+                "flagged": "False",
+                "updated_at": "2026-07-07T00:00:00+00:00",
+            }],
+        )
+
+        response = self.client.get("/progress")
+        self.assertEqual(
+            response.get_json(),
+            {
+                "total": 2,
+                "done": 1,
+                "skipped": 0,
+                "flagged": 0,
+                "remaining": 1,
+            },
+        )
+
+    def test_download_all_results_reads_from_csv_results(self):
+        csv_store.write_results_rows(
+            os.path.join(self.results_dir, "tester_results.csv"),
+            [{
+                "username": "tester",
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": "100.5",
+                "y": "120.5",
+                "ra": "3.123",
+                "dec": "-32.987",
+                "skipped": "False",
+                "flagged": "False",
+                "updated_at": "2026-07-07T00:00:00+00:00",
+            }],
+        )
+
+        response = self.client.get("/download_all_results")
+
+        self.assertEqual(response.status_code, 200)
+        rows = list(csv.DictReader(io.StringIO(response.get_data(as_text=True))))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["username"], "tester")
+        self.assertTrue(
+            os.path.exists(os.path.join(self.combined_dir, "all_results.csv"))
+        )
+
+    def test_admin_review_reads_from_csv_results(self):
+        csv_store.write_results_rows(
+            os.path.join(self.results_dir, "tester_results.csv"),
+            [{
+                "username": "tester",
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": "100.5",
+                "y": "120.5",
+                "ra": "3.123",
+                "dec": "-32.987",
+                "skipped": "False",
+                "flagged": "False",
+                "updated_at": "2026-07-07T00:00:00+00:00",
+            }],
+        )
+
+        response = self.client.get("/admin/review")
+        page = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Cluster0000", page)
+
+    def test_migrate_sqlite_to_csv_command_writes_results_files(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 100.5,
+                "y": 120.5,
+                "ra": 3.123,
+                "dec": -32.987,
+                "index": 0,
+            },
+        )
+
+        os.remove(os.path.join(self.results_dir, "tester_results.csv"))
+
+        runner = self.app.test_cli_runner()
+        result = runner.invoke(args=["migrate-sqlite-to-csv"])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Migrated 1 annotations", result.output)
+        self.assertTrue(
+            os.path.exists(os.path.join(self.results_dir, "tester_results.csv"))
+        )
+
+    def test_index_lists_users_from_results_directory(self):
+        path = os.path.join(self.results_dir, "john_smith_results.csv")
+        csv_store.write_results_rows(path, [{
+            "username": "John Smith",
+            "cluster": "Cluster0000",
+            "image": "cluster000.jpg",
+            "x": "1.0",
+            "y": "2.0",
+            "ra": "3.0",
+            "dec": "4.0",
+            "skipped": "False",
+            "flagged": "False",
+            "updated_at": "2026-07-07T00:00:00",
+        }])
+
+        response = self.client.get("/0")
+        page = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('option value="John Smith"', page)
+
+    def test_import_results_creates_results_file(self):
+        results_csv = io.BytesIO(
+            (
+                "username,cluster,image,x,y,ra,dec,skipped,flagged,updated_at\n"
+                "Alice,Cluster0000,cluster000.jpg,100.5,120.5,3.123,-32.987,False,False,2026-07-07T00:00:00+00:00\n"
+            ).encode("utf-8")
+        )
+
+        response = self.client.post(
+            "/import_results",
+            data={"file": (results_csv, "alice_results.csv")},
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["username"], "Alice")
+        self.assertTrue(
+            os.path.exists(os.path.join(self.results_dir, "alice_results.csv"))
+        )
+
+    def test_import_results_refuses_collision_without_replace(self):
+        csv_store.write_results_rows(
+            os.path.join(self.results_dir, "alice_results.csv"),
+            [{
+                "username": "Alice",
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": "1.0",
+                "y": "2.0",
+                "ra": "3.0",
+                "dec": "4.0",
+                "skipped": "False",
+                "flagged": "False",
+                "updated_at": "2026-07-07T00:00:00+00:00",
+            }],
+        )
+
+        results_csv = io.BytesIO(
+            (
+                "username,cluster,image,x,y,ra,dec,skipped,flagged,updated_at\n"
+                "Alice,Cluster0001,cluster001.jpg,100.5,120.5,6.5,-32.6,False,False,2026-07-07T00:00:00+00:00\n"
+            ).encode("utf-8")
+        )
+
+        response = self.client.post(
+            "/import_results",
+            data={"file": (results_csv, "alice_results.csv")},
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertTrue(response.get_json()["collision"])
+
+    def test_import_results_replaces_when_confirmed(self):
+        csv_store.write_results_rows(
+            os.path.join(self.results_dir, "alice_results.csv"),
+            [{
+                "username": "Alice",
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": "1.0",
+                "y": "2.0",
+                "ra": "3.0",
+                "dec": "4.0",
+                "skipped": "False",
+                "flagged": "False",
+                "updated_at": "2026-07-07T00:00:00+00:00",
+            }],
+        )
+
+        results_csv = io.BytesIO(
+            (
+                "username,cluster,image,x,y,ra,dec,skipped,flagged,updated_at\n"
+                "Alice,Cluster0001,cluster001.jpg,100.5,120.5,6.5,-32.6,False,False,2026-07-07T00:00:00+00:00\n"
+            ).encode("utf-8")
+        )
+
+        response = self.client.post(
+            "/import_results",
+            data={
+                "file": (results_csv, "alice_results.csv"),
+                "replace_existing": "true",
+            },
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rows = csv_store.read_results_rows(os.path.join(self.results_dir, "alice_results.csv"))
+        self.assertEqual(rows[0]["cluster"], "Cluster0001")
+
+    def test_import_results_rejects_multi_user_file(self):
+        results_csv = io.BytesIO(
+            (
+                "username,cluster,image,x,y,ra,dec,skipped,flagged,updated_at\n"
+                "Alice,Cluster0000,cluster000.jpg,100.5,120.5,3.123,-32.987,False,False,2026-07-07T00:00:00+00:00\n"
+                "Bob,Cluster0001,cluster001.jpg,100.5,120.5,6.5,-32.6,False,False,2026-07-07T00:00:00+00:00\n"
+            ).encode("utf-8")
+        )
+
+        response = self.client.post(
+            "/import_results",
+            data={"file": (results_csv, "mixed_results.csv")},
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("more than one username", response.get_json()["message"])
+
+    def test_import_results_accepts_legacy_export_format_using_filename(self):
+        results_csv = io.BytesIO(
+            (
+                "cluster,image,x,y,ra,dec,skipped,flagged\n"
+                "Cluster0000,cluster000.jpg,100.5,120.5,3.123,-32.987,False,False\n"
+            ).encode("utf-8")
+        )
+
+        response = self.client.post(
+            "/import_results",
+            data={"file": (results_csv, "john_smith_results.csv")},
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["username"], "john smith")
+        rows = csv_store.read_results_rows(os.path.join(self.results_dir, "john_smith_results.csv"))
+        self.assertEqual(rows[0]["username"], "john smith")
+        self.assertTrue(rows[0]["updated_at"])
+
+    def test_download_results_includes_username_and_updated_at(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 100.5,
+                "y": 120.5,
+                "ra": 3.123,
+                "dec": -32.987,
+                "index": 0,
+            },
+        )
+
+        response = self.client.get("/download_results")
+
+        self.assertEqual(response.status_code, 200)
+        rows = list(csv.DictReader(io.StringIO(response.get_data(as_text=True))))
+        self.assertEqual(rows[0]["username"], "tester")
+        self.assertTrue(rows[0]["updated_at"])
 
     def test_next_unannotated_returns_first_remaining_cluster(self):
         self.client.post(

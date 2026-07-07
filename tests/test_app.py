@@ -80,6 +80,7 @@ class BCGPickerAppTests(unittest.TestCase):
                 "y": 120.5,
                 "ra": 3.123,
                 "dec": -32.987,
+                "note": "Likely central galaxy",
                 "index": 0,
             },
         )
@@ -101,6 +102,7 @@ class BCGPickerAppTests(unittest.TestCase):
                 "y": 120.5,
                 "ra": 3.123,
                 "dec": -32.987,
+                "note": "Likely central galaxy",
             },
         )
 
@@ -137,6 +139,7 @@ class BCGPickerAppTests(unittest.TestCase):
                 "cluster": "Cluster0001",
                 "image": "cluster001.jpg",
                 "flagged": True,
+                "note": "Interesting merger candidate",
                 "index": 1,
             },
         )
@@ -163,8 +166,43 @@ class BCGPickerAppTests(unittest.TestCase):
                 "exists": True,
                 "skipped": False,
                 "flagged": True,
+                "note": "Interesting merger candidate",
             },
         )
+
+    def test_save_replaces_previous_note(self):
+        self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 100.5,
+                "y": 120.5,
+                "ra": 3.123,
+                "dec": -32.987,
+                "note": "First note",
+                "index": 0,
+            },
+        )
+
+        response = self.client.post(
+            "/save",
+            json={
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": 100.5,
+                "y": 120.5,
+                "ra": 3.123,
+                "dec": -32.987,
+                "note": "Updated note",
+                "index": 0,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        load_response = self.client.get("/load/Cluster0000")
+        self.assertEqual(load_response.status_code, 200)
+        self.assertEqual(load_response.get_json()["note"], "Updated note")
 
     def test_save_rejects_missing_fields(self):
         response = self.client.post(
@@ -292,7 +330,8 @@ class BCGPickerAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="previous-image-variant"', page)
         self.assertIn('id="next-image-variant"', page)
-        self.assertIn("J / K", page)
+        self.assertIn("J / D", page)
+        self.assertIn("K / F", page)
         self.assertIn("/images/with_nonotion/cluster000_nonotation.jpg", page)
         self.assertIn("with_notation/cluster000_withnotation.jpg", page)
         self.assertIn("member/cluster000_member.jpg", page)
@@ -571,6 +610,7 @@ class BCGPickerAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         rows = list(csv.DictReader(io.StringIO(response.get_data(as_text=True))))
         self.assertEqual(rows[0]["username"], "tester")
+        self.assertIn("note", rows[0])
         self.assertTrue(rows[0]["updated_at"])
 
     def test_next_unannotated_returns_first_remaining_cluster(self):

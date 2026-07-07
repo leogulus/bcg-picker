@@ -18,7 +18,7 @@ COMBINED_DIR = os.path.join(BASE_DIR, "data", "combined")
 CATALOG_FIELDS = {"cluster", "image", "ra", "dec", "redshift", "pixscale"}
 CATALOG_FIELDNAMES = ["cluster", "image", "ra", "dec", "redshift", "pixscale"]
 RESULTS_FIELDNAMES = csv_store.RESULTS_FIELDNAMES
-ALL_RESULTS_FIELDNAMES = ["username", "cluster", "image", "x", "y", "ra", "dec", "skipped", "flagged", "updated_at"]
+ALL_RESULTS_FIELDNAMES = ["username", "cluster", "image", "x", "y", "ra", "dec", "skipped", "flagged", "note", "updated_at"]
 SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "bcg-picker-dev-secret")
 REVIEW_MARKER_COLORS = [
     "#e53935",
@@ -685,6 +685,7 @@ def create_app(test_config=None):
             "dec": None if skipped or flagged else data.get("dec"),
             "skipped": skipped,
             "flagged": flagged,
+            "note": (data.get("note") or "").strip(),
         }
 
         try:
@@ -728,14 +729,16 @@ def create_app(test_config=None):
             if csv_store.parse_bool(row["skipped"]):
                 return jsonify({
                     "exists": True,
-                    "skipped": True
+                    "skipped": True,
+                    "note": row.get("note", ""),
                 })
 
             if csv_store.parse_bool(row["flagged"]):
                 return jsonify({
                     "exists": True,
                     "skipped": False,
-                    "flagged": True
+                    "flagged": True,
+                    "note": row.get("note", ""),
                 })
 
             return jsonify({
@@ -746,6 +749,7 @@ def create_app(test_config=None):
                 "y": float(row["y"]) if row["y"] not in ("", None) else None,
                 "ra": float(row["ra"]) if row["ra"] not in ("", None) else None,
                 "dec": float(row["dec"]) if row["dec"] not in ("", None) else None,
+                "note": row.get("note", ""),
             })
 
         return jsonify({"exists": False})

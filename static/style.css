@@ -70,6 +70,31 @@ body {
     line-height: 1.7;
 }
 
+#note-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+#note-panel label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #314760;
+}
+
+#object-note {
+    width: 100%;
+    min-height: 92px;
+    padding: 8px 10px;
+    box-sizing: border-box;
+    border: 1px solid #c9d4e4;
+    border-radius: 8px;
+    background: #fbfdff;
+    color: #23354d;
+    font: inherit;
+    resize: vertical;
+}
+
 .picked-value {
     display: inline-block;
     min-width: 78px;
@@ -376,7 +401,8 @@ button:active,
 #annotation-state,
 #cluster-meta,
 #catalog-export-buttons,
-#image-variant-actions {
+#image-variant-actions,
+#note-panel {
     margin-top: 0;
     margin-bottom: 0;
 }

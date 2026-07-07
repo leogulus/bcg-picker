@@ -98,6 +98,13 @@
                 RA: <span id="ra" class="picked-value">-</span><br>
                 Dec: <span id="dec" class="picked-value">-</span>
             </div>
+
+            <div id="note-panel">
+                <label for="object-note">Notes / Comments</label>
+                <textarea id="object-note"
+                          rows="4"
+                          placeholder="Add comments about this object..."></textarea>
+            </div>
         </div>
 
         <div class="navigation">
@@ -130,16 +137,19 @@
             </div>
         </div>
 
+        <button id="zoom-reset">Zoom 1</button>
+
         <div id="shortcuts" class="right-panel-card">
             <h3>Controls</h3>
 
             <ul>
                 <li><b>Click image</b> → Create marker</li>
                 <li><b>S</b> → Save Coordinates to file</li>
-                <li><b>N</b> → Skip/Unsure</li>
-                <li><b>F</b> → Flag Interesting</li>
+                <li><b>N / W</b> → Skip/Unsure</li>
+                <li><b>E / G</b> → Flag Interesting</li>
                 <li><b>U</b> → Next unannotated cluster</li>
-                <li><b>J / K</b> → Previous / Next image view</li>
+                <li><b>J / D</b> → Previous image view</li>
+                <li><b>K / F</b> → Next image view</li>
                 <li><b>← / →</b> → Previous / Next cluster</li>
                 <li><b>1</b> → Reset Zoom</li>
                 <li><b>Mouse wheel</b> → Zoom in/out</li>
@@ -153,7 +163,6 @@
         {% endif %}
 
         <button id="download-results">Download Results CSV</button>
-        <button id="zoom-reset">Zoom 1</button>
 
         <div id="catalog-filter-panel" class="right-panel-card">
             <h3>Catalog View</h3>

@@ -17,6 +17,19 @@ RESULTS_FIELDNAMES = [
     "dec",
     "skipped",
     "flagged",
+    "note",
+    "updated_at",
+]
+REQUIRED_RESULTS_FIELDNAMES = [
+    "username",
+    "cluster",
+    "image",
+    "x",
+    "y",
+    "ra",
+    "dec",
+    "skipped",
+    "flagged",
     "updated_at",
 ]
 LEGACY_RESULTS_FIELDNAMES = [
@@ -98,7 +111,17 @@ def read_results_rows(path):
         return []
 
     with open(path, newline="") as file_obj:
-        return list(csv.DictReader(file_obj))
+        rows = list(csv.DictReader(file_obj))
+    return [normalize_results_row(row) for row in rows]
+
+
+def normalize_results_row(row):
+    normalized_row = {field: row.get(field, "") for field in RESULTS_FIELDNAMES}
+    if not normalized_row.get("updated_at"):
+        normalized_row["updated_at"] = ""
+    if normalized_row.get("note") is None:
+        normalized_row["note"] = ""
+    return normalized_row
 
 
 def write_results_rows(path, rows, fieldnames=None):
@@ -148,6 +171,7 @@ def upsert_annotation(results_dir, username, annotation):
         "dec": "" if annotation.get("dec") is None else annotation.get("dec"),
         "skipped": "True" if annotation.get("skipped") else "False",
         "flagged": "True" if annotation.get("flagged") else "False",
+        "note": annotation.get("note", "") or "",
         "updated_at": updated_at,
     }
 
@@ -183,6 +207,7 @@ def export_user_annotations(results_dir, username):
             "dec": row["dec"],
             "skipped": row["skipped"],
             "flagged": row["flagged"],
+            "note": row.get("note", ""),
             "updated_at": row.get("updated_at", ""),
         }
         for row in rows
@@ -262,7 +287,7 @@ def validate_results_rows(rows):
 
     missing = [
         field
-        for field in RESULTS_FIELDNAMES
+        for field in REQUIRED_RESULTS_FIELDNAMES
         if field not in rows[0]
     ]
     if missing:
@@ -301,6 +326,7 @@ def normalize_imported_results_rows(rows, fallback_username=""):
                 "dec": row.get("dec", ""),
                 "skipped": row.get("skipped", "False") or "False",
                 "flagged": row.get("flagged", "False") or "False",
+                "note": row.get("note", "") or "",
                 "updated_at": row.get("updated_at", "") or get_timestamp_string(),
             }
             normalized_rows.append(normalized_row)
@@ -309,7 +335,7 @@ def normalize_imported_results_rows(rows, fallback_username=""):
     validate_results_rows(rows)
     normalized_rows = []
     for row in rows:
-        normalized_row = dict(row)
+        normalized_row = normalize_results_row(row)
         if not normalized_row.get("updated_at"):
             normalized_row["updated_at"] = get_timestamp_string()
         normalized_rows.append(normalized_row)

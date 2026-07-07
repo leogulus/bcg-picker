@@ -7,6 +7,7 @@ const xValue = document.getElementById("x");
 const yValue = document.getElementById("y");
 const raValue = document.getElementById("ra");
 const decValue = document.getElementById("dec");
+const noteInput = document.getElementById("object-note");
 const currentImageVariantText = document.getElementById("current-image-variant");
 const currentUserSummary = document.getElementById("current-user-summary");
 const annotationStateBadge = document.getElementById("annotation-state-badge");
@@ -129,6 +130,20 @@ function clearMarkerSelection() {
     decValue.textContent = "-";
 }
 
+function getCurrentNote() {
+    if (!noteInput) {
+        return "";
+    }
+    return noteInput.value.trim();
+}
+
+function setCurrentNote(note) {
+    if (!noteInput) {
+        return;
+    }
+    noteInput.value = note || "";
+}
+
 function setAnnotationState(state) {
     if (!annotationStateBadge) {
         return;
@@ -163,6 +178,7 @@ async function submitQuickStatus(payload, finalMessage) {
             cluster: cluster,
             image: image,
             index: currentIndex,
+            note: getCurrentNote(),
             ...payload
         })
     });
@@ -300,6 +316,7 @@ saveButton.onclick = async function(){
             },
             body: JSON.stringify({
                 ...currentClick,
+                note: getCurrentNote(),
                 index: currentIndex
             })
         });
@@ -469,10 +486,14 @@ window.onload = async function() {
     const response = await fetch("/load/" + cluster);
     const result = await response.json();
 
-    if (!result.exists) return;
+    if (!result.exists) {
+        setCurrentNote("");
+        return;
+    }
 
     if (result.skipped) {
         clearMarkerSelection();
+        setCurrentNote(result.note || "");
         setAnnotationState("skipped");
         statusText.textContent = "Skipped";
         return;
@@ -480,6 +501,7 @@ window.onload = async function() {
 
     if (result.flagged) {
         clearMarkerSelection();
+        setCurrentNote(result.note || "");
         setAnnotationState("flagged");
         statusText.textContent = "Flagged";
         return;
@@ -487,6 +509,7 @@ window.onload = async function() {
 
     if (result.x !== undefined && result.y !== undefined) {
         updateMarker(result.x, result.y);
+        setCurrentNote(result.note || "");
         setAnnotationState("saved");
         statusText.textContent = "Existing annotation loaded.";
     }
@@ -508,11 +531,11 @@ document.addEventListener("keydown", function(event) {
         saveButton.click();
     }
 
-    if (event.key === "n") {
+    if (["n", "N", "w", "W"].includes(event.key)) {
         skipUnsureButton.click();
     }
 
-    if (event.key === "f" || event.key === "F") {
+    if (["e", "E", "g", "G"].includes(event.key)) {
         flagInterestingButton.click();
     }
 
@@ -520,11 +543,11 @@ document.addEventListener("keydown", function(event) {
         nextUnannotatedButton.click();
     }
 
-    if (event.key === "j" || event.key === "J") {
+    if (["j", "J", "d", "D"].includes(event.key)) {
         stepImageVariant(-1);
     }
 
-    if (event.key === "k" || event.key === "K") {
+    if (["k", "K", "f", "F"].includes(event.key)) {
         stepImageVariant(1);
     }
 

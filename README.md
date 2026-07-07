@@ -17,11 +17,13 @@ This makes the workflow easier to inspect, share, and use across different machi
 ## Features
 
 - Interactive image viewer for cluster cutouts
+- Three-view image browser for each cluster (`No Notation`, `With Notation`, `Member`)
 - Click-to-mark BCG selection
 - Pixel-to-RA/Dec conversion from the selected marker
 - Marker placement that stays aligned while zooming
 - Per-user saved annotations with simple username switching
 - Skip/unsure and flagged states
+- Per-object notes/comments saved with each annotation
 - Active-user progress tracking
 - Jump to the next unannotated cluster for the current user
 - Filter the catalog view to `All`, `Skip / Unsure`, or `Flagged`
@@ -75,6 +77,9 @@ bcg-picker/
 │   ├── imports/
 │   └── combined/
 ├── images/
+│   ├── member/
+│   ├── with_nonotion/
+│   └── with_notation/
 ├── screenshots/
 ├── static/
 │   ├── script.js
@@ -128,7 +133,7 @@ data/results/john_smith_results.csv
 Stored columns:
 
 ```text
-username,cluster,image,x,y,ra,dec,skipped,flagged,updated_at
+username,cluster,image,x,y,ra,dec,skipped,flagged,note,updated_at
 ```
 
 ### Combined results
@@ -153,15 +158,34 @@ data/imports/
 2. Choose an existing user from the dropdown, or enter a new username.
 3. Navigate to a cluster.
 4. Zoom if needed using the mouse wheel.
-5. Click the galaxy to place or move the marker.
-6. Press `S` or click `Save`.
-7. Press `N` or click `Unsure` to skip an uncertain object.
-8. Press `F` or click `Flag` to mark an object for later review.
-9. Press `U` or click `Next unannotated` to jump to the next remaining cluster for that user.
-10. Use `Download Results CSV` anytime to export the current user's current annotations.
-11. Use `Reset Current User Results` to clear that user's saved work for the current catalog and start over.
+5. Use `Previous Image` / `Next Image` or the keyboard shortcuts to switch between the three image views.
+6. Click the galaxy to place or move the marker.
+7. Optionally add notes/comments for the object.
+8. Press `S` or click `Save`.
+9. Press `N` or click `Unsure` to skip an uncertain object.
+10. Press `Flag` or use the flag shortcut to mark an object for later review.
+11. Press `U` or click `Next unannotated` to jump to the next remaining cluster for that user.
+12. Use `Download Results CSV` anytime to export the current user's current annotations.
+13. Use `Reset Current User Results` to clear that user's saved work for the current catalog and start over.
 
-Each user sees only their own saved positions, skip states, flagged states, and progress counts.
+Each user sees only their own saved positions, skip states, flagged states, notes, and progress counts.
+
+## Image Views
+
+Each cluster now has three linked image views:
+
+- `No Notation`
+- `With Notation`
+- `Member`
+
+The app starts on `No Notation` by default.
+
+The marker is shared across all three views:
+
+- before saving, switching views keeps the current unsaved marker
+- after saving, revisiting the cluster shows the saved marker on all three views
+
+This works because the three images for a given cluster are aligned to the same pixel grid.
 
 ## Catalog Filters
 
@@ -186,7 +210,7 @@ If a filter has no matching objects for the current user, the app shows an empty
 `Download Results CSV` exports the active user’s file in the import-ready format:
 
 ```text
-username,cluster,image,x,y,ra,dec,skipped,flagged,updated_at
+username,cluster,image,x,y,ra,dec,skipped,flagged,note,updated_at
 ```
 
 The filename is based on the sanitized username, for example:
@@ -196,6 +220,7 @@ alice_results.csv
 ```
 
 Saving an annotation for the same user and cluster overwrites that user’s previous row for that object.
+Saving again also replaces that object’s previous note/comment for the same user.
 
 ## Reviewer Worklist Export
 
@@ -313,9 +338,11 @@ http://127.0.0.1:5000/cluster/Cluster0001
 | --- | --- |
 | Click image | Place or move marker |
 | `S` | Save annotation |
-| `N` | Skip / unsure |
-| `F` | Flag interesting object |
+| `N`, `W` | Skip / unsure |
+| `E`, `G` | Flag interesting object |
 | `U` | Jump to next unannotated cluster |
+| `J`, `D` | Previous image view |
+| `K`, `F` | Next image view |
 | `←` | Previous cluster |
 | `→` | Next cluster |
 | `1` | Reset zoom to 1× |

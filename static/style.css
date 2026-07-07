@@ -25,10 +25,6 @@ body {
     font-size:15px;
 }
 
-#cluster-info-panel {
-    margin-top: 12px;
-}
-
 #cluster-meta {
     margin-bottom: 10px;
     font-size: 14px;
@@ -113,6 +109,9 @@ body {
     padding: 20px;
     background: linear-gradient(180deg, #f6f8fb 0%, #eef3f9 100%);
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 /* IMAGE */
@@ -126,7 +125,7 @@ body {
 button {
     width: 100%;
     padding: 10px;
-    margin-top: 10px;
+    margin-top: 0;
     font-size: 16px;
     border: 1px solid #c7d2e2;
     border-radius: 10px;
@@ -152,13 +151,37 @@ button:active,
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
-    margin-top: 10px;
+    align-items: stretch;
 }
 
 #primary-actions button {
-    margin-top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
     font-size: 13px;
     min-height: 52px;
+    line-height: 1.2;
+}
+
+#current-image-variant {
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #314760;
+}
+
+#image-variant-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+#image-variant-actions button {
+    margin-top: 0;
+    font-size: 13px;
+    min-height: 44px;
 }
 
 .danger-button {
@@ -167,11 +190,24 @@ button:active,
     color: #8a1f1f;
 }
 
+#cluster-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+#cluster-header h2 {
+    margin: 0;
+}
+
 #status {
     display: block;
-    margin-top: 10px;
     font-weight: bold;
     color: green;
+}
+
+#status:empty {
+    display: none;
 }
 
 #status.error {
@@ -189,7 +225,6 @@ button:active,
 }
 
 .right-panel-card {
-    margin-bottom: 16px;
     padding: 12px;
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid #d9e2ef;
@@ -231,14 +266,26 @@ button:active,
 
 #user-panel label {
     display: block;
-    margin-top: 8px;
     font-size: 13px;
+}
+
+#user-panel label + select,
+#user-panel label + input,
+#upload input[type="file"],
+#import-results-panel input[type="file"] {
+    margin-top: 4px;
+}
+
+#user-panel form,
+#import-results-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 #user-panel select,
 #user-panel input {
     width: 100%;
-    margin-top: 4px;
     padding: 8px;
     box-sizing: border-box;
     border: 1px solid #c9d4e4;
@@ -249,7 +296,6 @@ button:active,
 
 #current-user-text,
 #current-user-summary {
-    margin-top: 10px;
     font-size: 13px;
     color: #314760;
 }
@@ -299,13 +345,11 @@ button:active,
 }
 
 #empty-filter-help {
-    margin-top: 12px;
     font-size: 14px;
     line-height: 1.5;
 }
 
 #admin-panel {
-    margin-top: 16px;
     background: linear-gradient(180deg, rgba(255, 250, 238, 0.98) 0%, rgba(255, 244, 214, 0.96) 100%);
     border-color: #e6d19a;
 }
@@ -315,9 +359,26 @@ button:active,
 }
 
 #upload-status {
-    margin-top: 10px;
     font-size: 13px;
     color: #314760;
+}
+
+#status,
+#upload-status,
+#import-results-status,
+#current-user-text,
+#current-user-summary,
+#current-image-variant {
+    margin-top: 0;
+}
+
+#cluster-info-panel,
+#annotation-state,
+#cluster-meta,
+#catalog-export-buttons,
+#image-variant-actions {
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
 #import-results-panel {

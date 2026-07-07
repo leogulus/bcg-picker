@@ -17,7 +17,7 @@
         {% if galaxy %}
         <div id="image-wrapper">
             <img id="galaxy"
-                src="/images/{{ galaxy.image }}"
+                src="/images/{{ galaxy.image_variants[0].path }}"
                 draggable="false">
             <div id="marker"></div>
         </div>
@@ -75,37 +75,11 @@
             {% endif %}
         </div>
 
-        <div id="catalog-filter-panel" class="right-panel-card">
-            <h3>Catalog View</h3>
-            <div id="catalog-filter-buttons">
-                <button id="filter-all"
-                        class="catalog-filter-button{% if catalog_filter_mode == 'all' %} active{% endif %}"
-                        type="button">
-                    All
-                </button>
-                <button id="filter-skipped"
-                        class="catalog-filter-button{% if catalog_filter_mode == 'skipped' %} active{% endif %}"
-                        type="button">
-                    Skip / Unsure
-                </button>
-                <button id="filter-flagged"
-                        class="catalog-filter-button{% if catalog_filter_mode == 'flagged' %} active{% endif %}"
-                        type="button">
-                    Flagged
-                </button>
-            </div>
-            {% if current_user %}
-            <div id="catalog-export-buttons">
-                <button id="download-skipped-catalog" type="button">Download Skip / Unsure Catalog</button>
-                <button id="download-flagged-catalog" type="button">Download Flagged Catalog</button>
-            </div>
-            {% endif %}
-        </div>
-
-        <span id="status"></span>
-
         {% if galaxy %}
-        <h2>{{ galaxy.cluster }}</h2>
+        <div id="cluster-header">
+            <h2>{{ galaxy.cluster }}</h2>
+            <span id="status"></span>
+        </div>
 
         <div id="cluster-info-panel" class="right-panel-card">
             <div id="cluster-meta">
@@ -144,8 +118,17 @@
         <button id="flag-interesting">Flag</button>
         <button id="next-unannotated">Next unannotated</button>
         </div>
-        <button id="download-results">Download Results CSV</button>
-        <button id="zoom-reset">Zoom 1</button>
+
+        <div id="image-variant-panel" class="right-panel-card">
+            <h3>Image View</h3>
+            <div id="current-image-variant">
+                {{ galaxy.image_variants[0].label }}
+            </div>
+            <div id="image-variant-actions">
+                <button id="previous-image-variant" type="button">Previous Image (J)</button>
+                <button id="next-image-variant" type="button">Next Image (K)</button>
+            </div>
+        </div>
 
         <div id="shortcuts" class="right-panel-card">
             <h3>Controls</h3>
@@ -156,6 +139,7 @@
                 <li><b>N</b> → Skip/Unsure</li>
                 <li><b>F</b> → Flag Interesting</li>
                 <li><b>U</b> → Next unannotated cluster</li>
+                <li><b>J / K</b> → Previous / Next image view</li>
                 <li><b>← / →</b> → Previous / Next cluster</li>
                 <li><b>1</b> → Reset Zoom</li>
                 <li><b>Mouse wheel</b> → Zoom in/out</li>
@@ -167,6 +151,36 @@
             Switch back to <b>All</b>, or choose a different user to review their skipped or flagged objects.
         </div>
         {% endif %}
+
+        <button id="download-results">Download Results CSV</button>
+        <button id="zoom-reset">Zoom 1</button>
+
+        <div id="catalog-filter-panel" class="right-panel-card">
+            <h3>Catalog View</h3>
+            <div id="catalog-filter-buttons">
+                <button id="filter-all"
+                        class="catalog-filter-button{% if catalog_filter_mode == 'all' %} active{% endif %}"
+                        type="button">
+                    All
+                </button>
+                <button id="filter-skipped"
+                        class="catalog-filter-button{% if catalog_filter_mode == 'skipped' %} active{% endif %}"
+                        type="button">
+                    Skip / Unsure
+                </button>
+                <button id="filter-flagged"
+                        class="catalog-filter-button{% if catalog_filter_mode == 'flagged' %} active{% endif %}"
+                        type="button">
+                    Flagged
+                </button>
+            </div>
+            {% if current_user %}
+            <div id="catalog-export-buttons">
+                <button id="download-skipped-catalog" type="button">Download Skip / Unsure Catalog</button>
+                <button id="download-flagged-catalog" type="button">Download Flagged Catalog</button>
+            </div>
+            {% endif %}
+        </div>
 
         <div id="upload" class="right-panel-card">
             <h3>Load Custom Catalog</h3>
@@ -206,6 +220,7 @@ const currentIndex = {{ index }};
 const total = {{ total }};
 const currentUser = {{ (current_user or '')|tojson }};
 const currentFilterMode = {{ catalog_filter_mode|tojson }};
+const imageVariants = {{ (galaxy.image_variants if galaxy else [])|tojson }};
 </script>
 
 <script src="{{ url_for('static', filename='script.js') }}"></script>

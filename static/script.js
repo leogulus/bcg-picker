@@ -7,6 +7,7 @@ const xValue = document.getElementById("x");
 const yValue = document.getElementById("y");
 const raValue = document.getElementById("ra");
 const decValue = document.getElementById("dec");
+const currentImageVariantText = document.getElementById("current-image-variant");
 const currentUserSummary = document.getElementById("current-user-summary");
 const annotationStateBadge = document.getElementById("annotation-state-badge");
 const statusText = document.getElementById("status");
@@ -30,6 +31,9 @@ const filterSkippedButton = document.getElementById("filter-skipped");
 const filterFlaggedButton = document.getElementById("filter-flagged");
 const downloadSkippedCatalogButton = document.getElementById("download-skipped-catalog");
 const downloadFlaggedCatalogButton = document.getElementById("download-flagged-catalog");
+const previousImageVariantButton = document.getElementById("previous-image-variant");
+const nextImageVariantButton = document.getElementById("next-image-variant");
+let currentImageVariantIndex = 0;
 
 function pixelToRaDec(x, y, ra0, dec0, pixscale) {
     const numericX = Number(x);
@@ -57,7 +61,7 @@ function pixelToRaDec(x, y, ra0, dec0, pixscale) {
 }
 
 function renderMarker() {
-    if (currentClick == null) {
+    if (!img || currentClick == null || !img.naturalWidth || !img.naturalHeight) {
         marker.style.display = "none";
         return;
     }
@@ -93,6 +97,27 @@ function updateMarker(x, y) {
     };
 
     renderMarker();
+}
+
+function setImageVariant(index) {
+    if (!img || !imageVariants.length) {
+        return;
+    }
+
+    const totalVariants = imageVariants.length;
+    currentImageVariantIndex = ((index % totalVariants) + totalVariants) % totalVariants;
+    const variant = imageVariants[currentImageVariantIndex];
+    img.src = `/images/${variant.path}`;
+    if (currentImageVariantText) {
+        currentImageVariantText.textContent = variant.label;
+    }
+}
+
+function stepImageVariant(direction) {
+    if (!imageVariants.length) {
+        return;
+    }
+    setImageVariant(currentImageVariantIndex + direction);
 }
 
 function clearMarkerSelection() {
@@ -242,6 +267,10 @@ async function downloadCatalogSubset(filterMode) {
 }
 
 if (img) {
+    img.addEventListener("load", function() {
+        renderMarker();
+    });
+
     img.addEventListener("click", function(event){
         const rect = img.getBoundingClientRect();
 
@@ -428,6 +457,9 @@ if (resetUserResultsButton) {
 
 window.onload = async function() {
     setActiveCatalogFilter(currentFilterMode);
+    if (imageVariants.length) {
+        setImageVariant(0);
+    }
     await loadProgress();
 
     if (!hasGalaxy) {
@@ -465,6 +497,13 @@ document.addEventListener("keydown", function(event) {
         return;
     }
 
+    const targetTag = event.target && event.target.tagName
+        ? event.target.tagName.toLowerCase()
+        : "";
+    if (["input", "textarea", "select"].includes(targetTag)) {
+        return;
+    }
+
     if (event.key === "s") {
         saveButton.click();
     }
@@ -479,6 +518,14 @@ document.addEventListener("keydown", function(event) {
 
     if (event.key === "u" || event.key === "U") {
         nextUnannotatedButton.click();
+    }
+
+    if (event.key === "j" || event.key === "J") {
+        stepImageVariant(-1);
+    }
+
+    if (event.key === "k" || event.key === "K") {
+        stepImageVariant(1);
     }
 
     if (event.key === "ArrowLeft") {
@@ -520,6 +567,18 @@ window.addEventListener("wheel", function(event) {
 
 if (zoomResetButton) {
     zoomResetButton.onclick = resetZoom;
+}
+
+if (previousImageVariantButton) {
+    previousImageVariantButton.onclick = function() {
+        stepImageVariant(-1);
+    };
+}
+
+if (nextImageVariantButton) {
+    nextImageVariantButton.onclick = function() {
+        stepImageVariant(1);
+    };
 }
 
 uploadButton.onclick = async function() {

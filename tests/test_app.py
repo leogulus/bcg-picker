@@ -267,6 +267,36 @@ class BCGPickerAppTests(unittest.TestCase):
             ["John Smith"],
         )
 
+    def test_build_image_variants_includes_all_three_views(self):
+        variants = app_module.build_image_variants("cluster000.jpg")
+
+        self.assertEqual(
+            variants,
+            [
+                {"key": "nonotation", "label": "No Notation", "path": "with_nonotion/cluster000_nonotation.jpg"},
+                {"key": "withnotation", "label": "With Notation", "path": "with_notation/cluster000_withnotation.jpg"},
+                {"key": "member", "label": "Member", "path": "member/cluster000_member.jpg"},
+            ],
+        )
+
+    def test_images_route_serves_nested_variant_path(self):
+        response = self.client.get("/images/with_notation/cluster000_withnotation.jpg")
+        response.get_data()
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_index_shows_image_variant_controls(self):
+        response = self.client.get("/0")
+        page = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('id="previous-image-variant"', page)
+        self.assertIn('id="next-image-variant"', page)
+        self.assertIn("J / K", page)
+        self.assertIn("/images/with_nonotion/cluster000_nonotation.jpg", page)
+        self.assertIn("with_notation/cluster000_withnotation.jpg", page)
+        self.assertIn("member/cluster000_member.jpg", page)
+
     def test_save_creates_sanitized_results_file(self):
         self.client.post(
             "/set_user",

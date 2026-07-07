@@ -36,6 +36,23 @@ VALID_CATALOG_FILTERS = {
     CATALOG_FILTER_SKIPPED,
     CATALOG_FILTER_FLAGGED,
 }
+IMAGE_VARIANT_SPECS = [
+    {
+        "key": "nonotation",
+        "label": "No Notation",
+        "build_path": lambda stem, ext: f"with_nonotion/{stem}_nonotation{ext}",
+    },
+    {
+        "key": "withnotation",
+        "label": "With Notation",
+        "build_path": lambda stem, ext: f"with_notation/{stem}_withnotation{ext}",
+    },
+    {
+        "key": "member",
+        "label": "Member",
+        "build_path": lambda stem, ext: f"member/{stem}_member{ext}",
+    },
+]
 
 
 def read_csv_rows(path):
@@ -200,6 +217,31 @@ def add_review_marker_colors(review_group):
     return review_group
 
 
+def build_image_variants(image_name):
+    stem, ext = os.path.splitext(image_name)
+    images_dir = os.path.join(BASE_DIR, "images")
+    variants = []
+
+    for spec in IMAGE_VARIANT_SPECS:
+        relative_path = spec["build_path"](stem, ext)
+        absolute_path = os.path.join(images_dir, relative_path)
+        if not os.path.exists(absolute_path):
+            continue
+        variants.append({
+            "key": spec["key"],
+            "label": spec["label"],
+            "path": relative_path,
+        })
+
+    return variants
+
+
+def enrich_galaxy(row):
+    enriched = dict(row)
+    enriched["image_variants"] = build_image_variants(row["image"])
+    return enriched
+
+
 def create_app(test_config=None):
     app = Flask(__name__, static_folder="static", static_url_path="/static")
     app.config["DEFAULT_CATALOG_FILE"] = DEFAULT_CATALOG_FILE
@@ -336,7 +378,7 @@ def create_app(test_config=None):
         if index < 0 or index >= len(catalog):
             return "Cluster index out of range", 404
 
-        galaxy = catalog[index]
+        galaxy = enrich_galaxy(catalog[index])
         return render_template(
             "index.html",
             galaxy=galaxy,
@@ -368,6 +410,7 @@ def create_app(test_config=None):
         if galaxy is None:
             return redirect(url_for("cluster", cluster=catalog[0]["cluster"]))
         index = catalog_maps["index"][cluster]
+        galaxy = enrich_galaxy(galaxy)
         return render_template(
             "index.html",
             galaxy=galaxy,
@@ -413,7 +456,7 @@ def create_app(test_config=None):
             "next_url": next_url,
         })
 
-    @app.route("/images/<filename>")
+    @app.route("/images/<path:filename>")
     def images(filename):
         return send_from_directory(os.path.join(BASE_DIR, "images"), filename)
 

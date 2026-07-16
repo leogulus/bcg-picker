@@ -48,6 +48,9 @@ Create an isolated environment, install dependencies, and run the app:
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env
+python -c "import secrets; print(secrets.token_hex(32))"
+export FLASK_SECRET_KEY="paste-generated-value-here"
 python app.py
 ```
 
@@ -56,6 +59,17 @@ Then open:
 ```text
 http://127.0.0.1:5000/
 ```
+
+If you just want the absolute minimum local setup, the steps are:
+
+1. Clone the repo and enter it.
+2. Create and activate a virtual environment.
+3. Install dependencies with `pip install -r requirements.txt`.
+4. Copy `.env.example` to `.env`.
+5. Generate a random `FLASK_SECRET_KEY` and export it in your shell.
+6. Run `python app.py`.
+
+`FLASK_SECRET_KEY` is not something you download from elsewhere. It is just a private random string used by Flask to sign session cookies. Each user can generate their own locally.
 
 ## Configuration
 

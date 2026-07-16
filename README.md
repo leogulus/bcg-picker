@@ -36,26 +36,18 @@ This makes the workflow easier to inspect, share, and use across different machi
 
 ## Requirements
 
-- Python 3
-- Flask
+- Python 3.10 or newer
+- The `images/` directory from this repository
+- A catalog CSV with the required columns
 
-Install from the repo manifest:
+## Quick Start
+
+Create an isolated environment, install dependencies, and run the app:
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-Or install Flask directly:
-
-```bash
-pip install flask
-```
-
-## Run the App
-
-Start the app with:
-
-```bash
 python app.py
 ```
 
@@ -63,6 +55,40 @@ Then open:
 
 ```text
 http://127.0.0.1:5000/
+```
+
+## Configuration
+
+The app runs out of the box with the repo defaults, but it also supports environment-variable overrides so another user can keep runtime files somewhere else on their machine.
+
+Optional environment variables:
+
+```text
+FLASK_SECRET_KEY
+FLASK_DEBUG
+FLASK_RUN_HOST
+FLASK_RUN_PORT
+BCG_PICKER_DATA_DIR
+BCG_PICKER_IMAGES_DIR
+BCG_PICKER_DEFAULT_CATALOG
+BCG_PICKER_UPLOADED_CATALOG
+BCG_PICKER_RESULTS_DIR
+BCG_PICKER_IMPORTS_DIR
+BCG_PICKER_COMBINED_DIR
+```
+
+An example template is included in:
+
+```text
+.env.example
+```
+
+Typical setup when you want writable runtime data outside the repo:
+
+```bash
+export BCG_PICKER_DATA_DIR="$HOME/bcg-picker-data"
+export FLASK_SECRET_KEY="replace-this-for-shared-use"
+python app.py
 ```
 
 ## Project Structure
@@ -93,6 +119,13 @@ bcg-picker/
 ├── requirements.txt
 └── README.md
 ```
+
+## First-Time Setup Notes
+
+- `data/results/`, `data/imports/`, and `data/combined/` are created automatically if they do not exist.
+- The app writes per-user results and imported reviewer files to those runtime directories.
+- If you upload a custom catalog, its image names must match files available under the configured `images/` directory.
+- If a cluster has no matching local image files, the page now stays usable and shows a clear message instead of crashing.
 
 ## Core Data Files
 

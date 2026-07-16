@@ -320,6 +320,7 @@ class BCGPickerAppTests(unittest.TestCase):
     def test_images_route_serves_nested_variant_path(self):
         response = self.client.get("/images/with_notation/cluster000_withnotation.jpg")
         response.get_data()
+        response.close()
 
         self.assertEqual(response.status_code, 200)
 
@@ -335,6 +336,33 @@ class BCGPickerAppTests(unittest.TestCase):
         self.assertIn("/images/with_nonotion/cluster000_nonotation.jpg", page)
         self.assertIn("with_notation/cluster000_withnotation.jpg", page)
         self.assertIn("member/cluster000_member.jpg", page)
+
+    def test_index_handles_cluster_without_local_image_variants(self):
+        with open(self.catalog_path, "w", newline="") as file_obj:
+            writer = csv.DictWriter(
+                file_obj,
+                fieldnames=["cluster", "image", "ra", "dec", "redshift", "pixscale"],
+            )
+            writer.writeheader()
+            writer.writerow(
+                {
+                    "cluster": "ClusterMissing",
+                    "image": "missing.jpg",
+                    "ra": "3.1",
+                    "dec": "-32.9",
+                    "redshift": "0.25",
+                    "pixscale": "0.262",
+                }
+            )
+
+        app_module.set_catalog(self.app, app_module.load_catalog(self.catalog_path))
+
+        response = self.client.get("/0")
+        page = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("No matching image files were found for this cluster on this machine.", page)
+        self.assertIn("No image views available", page)
 
     def test_save_creates_sanitized_results_file(self):
         self.client.post(

@@ -10,11 +10,28 @@ import csv_store
 from csv_store import ensure_csv_storage_dirs, list_result_usernames
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_CATALOG_FILE = os.path.join(BASE_DIR, "data", "catalog.csv")
-UPLOADED_CATALOG_FILE = os.path.join(BASE_DIR, "data", "uploaded_catalog.csv")
-RESULTS_DIR = os.path.join(BASE_DIR, "data", "results")
-IMPORTS_DIR = os.path.join(BASE_DIR, "data", "imports")
-COMBINED_DIR = os.path.join(BASE_DIR, "data", "combined")
+DATA_DIR = os.environ.get("BCG_PICKER_DATA_DIR", os.path.join(BASE_DIR, "data"))
+IMAGES_DIR = os.environ.get("BCG_PICKER_IMAGES_DIR", os.path.join(BASE_DIR, "images"))
+DEFAULT_CATALOG_FILE = os.environ.get(
+    "BCG_PICKER_DEFAULT_CATALOG",
+    os.path.join(DATA_DIR, "catalog.csv"),
+)
+UPLOADED_CATALOG_FILE = os.environ.get(
+    "BCG_PICKER_UPLOADED_CATALOG",
+    os.path.join(DATA_DIR, "uploaded_catalog.csv"),
+)
+RESULTS_DIR = os.environ.get(
+    "BCG_PICKER_RESULTS_DIR",
+    os.path.join(DATA_DIR, "results"),
+)
+IMPORTS_DIR = os.environ.get(
+    "BCG_PICKER_IMPORTS_DIR",
+    os.path.join(DATA_DIR, "imports"),
+)
+COMBINED_DIR = os.environ.get(
+    "BCG_PICKER_COMBINED_DIR",
+    os.path.join(DATA_DIR, "combined"),
+)
 CATALOG_FIELDS = {"cluster", "image", "ra", "dec", "redshift", "pixscale"}
 CATALOG_FIELDNAMES = ["cluster", "image", "ra", "dec", "redshift", "pixscale"]
 RESULTS_FIELDNAMES = csv_store.RESULTS_FIELDNAMES
@@ -219,12 +236,11 @@ def add_review_marker_colors(review_group):
 
 def build_image_variants(image_name):
     stem, ext = os.path.splitext(image_name)
-    images_dir = os.path.join(BASE_DIR, "images")
     variants = []
 
     for spec in IMAGE_VARIANT_SPECS:
         relative_path = spec["build_path"](stem, ext)
-        absolute_path = os.path.join(images_dir, relative_path)
+        absolute_path = os.path.join(IMAGES_DIR, relative_path)
         if not os.path.exists(absolute_path):
             continue
         variants.append({
@@ -239,6 +255,11 @@ def build_image_variants(image_name):
 def enrich_galaxy(row):
     enriched = dict(row)
     enriched["image_variants"] = build_image_variants(row["image"])
+    enriched["primary_image_variant"] = (
+        enriched["image_variants"][0]
+        if enriched["image_variants"]
+        else None
+    )
     return enriched
 
 
@@ -458,7 +479,7 @@ def create_app(test_config=None):
 
     @app.route("/images/<path:filename>")
     def images(filename):
-        return send_from_directory(os.path.join(BASE_DIR, "images"), filename)
+        return send_from_directory(IMAGES_DIR, filename)
 
     @app.route("/download_results")
     def download_results():
@@ -783,4 +804,12 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    debug_enabled = os.environ.get("FLASK_DEBUG", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    host = os.environ.get("FLASK_RUN_HOST", "127.0.0.1")
+    port = int(os.environ.get("FLASK_RUN_PORT", "5000"))
+    app.run(host=host, port=port, debug=debug_enabled)

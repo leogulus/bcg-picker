@@ -15,12 +15,18 @@
     <!-- LEFT: IMAGE -->
     <div class="left-panel">
         {% if galaxy %}
+        {% if galaxy.primary_image_variant %}
         <div id="image-wrapper">
             <img id="galaxy"
-                src="/images/{{ galaxy.image_variants[0].path }}"
+                src="/images/{{ galaxy.primary_image_variant.path }}"
                 draggable="false">
             <div id="marker"></div>
         </div>
+        {% else %}
+        <div id="empty-catalog-view">
+            No matching image files were found for this cluster on this machine.
+        </div>
+        {% endif %}
         {% else %}
         <div id="empty-catalog-view">
             No objects match this filter for the current user.
@@ -129,12 +135,18 @@
         <div id="image-variant-panel" class="right-panel-card">
             <h3>Image View</h3>
             <div id="current-image-variant">
-                {{ galaxy.image_variants[0].label }}
+                {% if galaxy.primary_image_variant %}
+                {{ galaxy.primary_image_variant.label }}
+                {% else %}
+                No image views available
+                {% endif %}
             </div>
+            {% if galaxy.primary_image_variant %}
             <div id="image-variant-actions">
                 <button id="previous-image-variant" type="button">Previous Image (J)</button>
                 <button id="next-image-variant" type="button">Next Image (K)</button>
             </div>
+            {% endif %}
         </div>
 
         <button id="zoom-reset">Zoom 1</button>

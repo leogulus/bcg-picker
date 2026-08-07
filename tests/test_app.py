@@ -24,6 +24,7 @@ class BCGPickerAppTests(unittest.TestCase):
         self.results_dir = os.path.join(self.temp_dir.name, "results")
         self.imports_dir = os.path.join(self.temp_dir.name, "imports")
         self.combined_dir = os.path.join(self.temp_dir.name, "combined")
+        self.bootstrap_results_path = os.path.join(self.temp_dir.name, "bootstrap_results.csv")
 
         with open(self.catalog_path, "w", newline="") as file_obj:
             writer = csv.DictWriter(
@@ -55,6 +56,8 @@ class BCGPickerAppTests(unittest.TestCase):
         self.app = app_module.create_app({
             "TESTING": True,
             "DEFAULT_CATALOG_FILE": self.catalog_path,
+            "BOOTSTRAP_RESULTS_FILE": self.bootstrap_results_path,
+            "BOOTSTRAP_USERNAME": "taweewat",
             "UPLOADED_CATALOG_FILE": self.upload_path,
             "RESULTS_DIR": self.results_dir,
             "IMPORTS_DIR": self.imports_dir,
@@ -270,6 +273,68 @@ class BCGPickerAppTests(unittest.TestCase):
 
         with self.client.session_transaction() as session:
             self.assertEqual(session["username"], "tester")
+
+    def test_create_app_bootstraps_default_results_file(self):
+        csv_store.write_results_rows(self.bootstrap_results_path, [{
+            "username": "taweewat",
+            "cluster": "Cluster0000",
+            "image": "cluster000.jpg",
+            "x": "1.0",
+            "y": "2.0",
+            "ra": "3.0",
+            "dec": "4.0",
+            "skipped": "False",
+            "flagged": "False",
+            "note": "bootstrap row",
+            "updated_at": "2026-08-07T00:00:00+00:00",
+        }])
+
+        bootstrapped_app = app_module.create_app({
+            "TESTING": True,
+            "DEFAULT_CATALOG_FILE": self.catalog_path,
+            "BOOTSTRAP_RESULTS_FILE": self.bootstrap_results_path,
+            "BOOTSTRAP_USERNAME": "taweewat",
+            "UPLOADED_CATALOG_FILE": self.upload_path,
+            "RESULTS_DIR": self.results_dir,
+            "IMPORTS_DIR": self.imports_dir,
+            "COMBINED_DIR": self.combined_dir,
+            "SECRET_KEY": "test-secret",
+        })
+
+        results_path = os.path.join(self.results_dir, "taweewat_results.csv")
+        self.assertTrue(os.path.exists(results_path))
+        rows = csv_store.read_results_rows(results_path)
+        self.assertEqual(rows[0]["username"], "taweewat")
+        self.assertEqual(rows[0]["note"], "bootstrap row")
+
+        imported_path = os.path.join(self.imports_dir, "taweewat_results.csv")
+        self.assertTrue(os.path.exists(imported_path))
+
+    def test_first_request_auto_selects_bootstrap_user(self):
+        csv_store.write_results_rows(
+            os.path.join(self.results_dir, "taweewat_results.csv"),
+            [{
+                "username": "taweewat",
+                "cluster": "Cluster0000",
+                "image": "cluster000.jpg",
+                "x": "1.0",
+                "y": "2.0",
+                "ra": "3.0",
+                "dec": "4.0",
+                "skipped": "False",
+                "flagged": "False",
+                "note": "",
+                "updated_at": "2026-08-07T00:00:00+00:00",
+            }],
+        )
+        with self.client.session_transaction() as session:
+            session.pop("username", None)
+
+        response = self.client.get("/0")
+
+        self.assertEqual(response.status_code, 200)
+        with self.client.session_transaction() as session:
+            self.assertEqual(session["username"], "taweewat")
 
     def test_sanitize_username_builds_safe_results_filename(self):
         self.assertEqual(

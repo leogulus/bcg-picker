@@ -16,6 +16,14 @@ DEFAULT_CATALOG_FILE = os.environ.get(
     "BCG_PICKER_DEFAULT_CATALOG",
     os.path.join(DATA_DIR, "catalog.csv"),
 )
+DEFAULT_BOOTSTRAP_RESULTS_FILE = os.environ.get(
+    "BCG_PICKER_BOOTSTRAP_RESULTS_FILE",
+    os.path.join(DATA_DIR, "imports", "taweewat_results.csv"),
+)
+DEFAULT_BOOTSTRAP_USERNAME = os.environ.get(
+    "BCG_PICKER_BOOTSTRAP_USERNAME",
+    "taweewat",
+)
 UPLOADED_CATALOG_FILE = os.environ.get(
     "BCG_PICKER_UPLOADED_CATALOG",
     os.path.join(DATA_DIR, "uploaded_catalog.csv"),
@@ -119,6 +127,35 @@ def load_runtime_catalog(app):
 
 def get_current_username():
     return session.get("username")
+
+
+def bootstrap_default_results(app):
+    bootstrap_path = app.config.get("BOOTSTRAP_RESULTS_FILE", "")
+    bootstrap_username = app.config.get("BOOTSTRAP_USERNAME", "").strip()
+    if not bootstrap_path or not bootstrap_username:
+        return
+
+    if not os.path.exists(bootstrap_path):
+        return
+
+    if csv_store.results_file_exists(app.config["RESULTS_DIR"], bootstrap_username):
+        return
+
+    rows = csv_store.read_results_rows(bootstrap_path)
+    if not rows:
+        return
+
+    normalized_rows = csv_store.normalize_imported_results_rows(
+        rows,
+        fallback_username=bootstrap_username,
+    )
+    csv_store.import_results_rows(
+        app.config["RESULTS_DIR"],
+        app.config["IMPORTS_DIR"],
+        bootstrap_username,
+        normalized_rows,
+        replace=False,
+    )
 
 
 def get_catalog_filter_mode():
@@ -266,6 +303,8 @@ def enrich_galaxy(row):
 def create_app(test_config=None):
     app = Flask(__name__, static_folder="static", static_url_path="/static")
     app.config["DEFAULT_CATALOG_FILE"] = DEFAULT_CATALOG_FILE
+    app.config["BOOTSTRAP_RESULTS_FILE"] = DEFAULT_BOOTSTRAP_RESULTS_FILE
+    app.config["BOOTSTRAP_USERNAME"] = DEFAULT_BOOTSTRAP_USERNAME
     app.config["UPLOADED_CATALOG_FILE"] = UPLOADED_CATALOG_FILE
     app.config["RESULTS_DIR"] = RESULTS_DIR
     app.config["IMPORTS_DIR"] = IMPORTS_DIR
@@ -278,7 +317,22 @@ def create_app(test_config=None):
         app.config["IMPORTS_DIR"],
         app.config["COMBINED_DIR"],
     )
+    bootstrap_default_results(app)
     set_catalog(app, load_runtime_catalog(app))
+
+    @app.before_request
+    def ensure_default_user():
+        if get_current_username():
+            return
+
+        bootstrap_username = current_app.config.get("BOOTSTRAP_USERNAME", "").strip()
+        if not bootstrap_username:
+            return
+
+        if bootstrap_username not in get_existing_usernames():
+            return
+
+        session["username"] = bootstrap_username
 
     @app.route("/set_user", methods=["POST"])
     def set_user():

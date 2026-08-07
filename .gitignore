@@ -15,3 +15,5 @@ data/uploaded_catalog.csv
 data/results/
 data/imports/
 data/combined/
+!data/imports/
+!data/imports/taweewat_results.csv

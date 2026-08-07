@@ -42,12 +42,12 @@ This makes the workflow easier to inspect, share, and use across different machi
 
 ## Quick Start
 
-Create an isolated environment, install dependencies, and run the app:
+Create a fresh conda environment, install `Flask`, and run the app:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+conda create -n bcg-picker -y
+conda activate bcg-picker
+python -m pip install Flask
 cp .env.example .env
 python app.py
 ```
@@ -61,8 +61,8 @@ http://127.0.0.1:5000/
 If you just want the absolute minimum local setup, the steps are:
 
 1. Clone the repo and enter it.
-2. Create and activate a virtual environment.
-3. Install dependencies with `pip install -r requirements.txt`.
+2. Create and activate a new conda environment.
+3. Install `Flask`.
 4. Copy `.env.example` to `.env`.
 5. Run `python app.py`.
 

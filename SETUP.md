@@ -51,4 +51,4 @@ Then open `http://localhost:5050/`.
 
 The picker opens on the read-only `taweewat` example review by default. Guests can inspect its marked, flagged, and unsure objects without creating an account.
 
-To begin their own work, a guest can choose **Start blank review** or import a previously downloaded results CSV. Their annotations are stored only in their browser until they use **Download my results CSV**. There is no login, password, or server-side guest-results storage.
+To begin their own work, a guest can choose **View my work** or import a previously downloaded results CSV. Their annotations are stored only in their browser until they use **Download my results CSV**. There is no login, password, or server-side guest-results storage.

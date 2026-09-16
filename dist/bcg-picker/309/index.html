@@ -23,7 +23,7 @@
             <p id="review-mode-description">Loading the example review…</p>
             <div class="guest-mode-actions">
                 <button id="view-example" type="button">View taweewat example</button>
-                <button id="start-guest-review" type="button">Start blank review</button>
+                <button id="view-guest-review" type="button">View my work</button>
                 <label class="file-button" for="results-file">Import my results CSV</label>
                 <input id="results-file" type="file" accept=".csv" hidden>
             </div>
@@ -37,10 +37,10 @@
         </section>
         
         <section id="cluster-info-panel" class="right-panel-card">
-            <div id="cluster-header"><h2>Cluster0309</h2><span id="status" aria-live="polite"></span></div>
+            <div id="cluster-header"><h2 id="cluster-title" role="button" tabindex="0" title="Jump to a cluster number">Cluster0309</h2><input id="cluster-jump-input" type="text" inputmode="numeric" autocomplete="off" aria-label="Cluster number" hidden><span id="status" aria-live="polite"></span></div>
             <div id="cluster-meta">Galaxy 310 / 311<br>z = 0.59752</div>
             <div id="annotation-state">Status: <span id="annotation-state-badge" class="annotation-state-badge annotation-state-none">Not marked</span></div>
-            <div id="info">X: <span id="x" class="picked-value">-</span><br>Y: <span id="y" class="picked-value">-</span><br>RA: <span id="ra" class="picked-value">-</span><br>Dec: <span id="dec" class="picked-value">-</span></div>
+            <div id="info"><div class="coordinate-row"><div class="coordinate-pair"><span class="coordinate-label">X:</span><span id="x" class="picked-value">-</span></div><div class="coordinate-pair"><span class="coordinate-label">Y:</span><span id="y" class="picked-value">-</span></div></div><div class="coordinate-row"><div class="coordinate-pair"><span class="coordinate-label">RA:</span><span id="ra" class="picked-value">-</span></div><div class="coordinate-pair"><span class="coordinate-label">Dec:</span><span id="dec" class="picked-value">-</span></div></div></div>
             <div id="note-panel"><label for="object-note">Notes / Comments</label><textarea id="object-note" rows="4" placeholder="Add comments about this object…"></textarea></div>
         </section>
         <nav class="navigation" aria-label="Cluster navigation">

@@ -560,7 +560,7 @@ class BCGPickerAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('option value="John Smith"', page)
-        self.assertIn("Start blank review", page)
+        self.assertIn("View my work", page)
 
     def test_import_results_creates_results_file(self):
         results_csv = io.BytesIO(
@@ -867,7 +867,7 @@ class BCGPickerAppTests(unittest.TestCase):
 
         self.assertEqual(page_response.status_code, 200)
         self.assertIn("Catalog View", page)
-        self.assertIn("Start blank review", page)
+        self.assertIn("View my work", page)
 
     def test_download_skipped_catalog_subset_returns_catalog_csv(self):
         self.client.post(
@@ -963,7 +963,7 @@ class BCGPickerAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("View taweewat example", page)
-        self.assertIn("Start blank review", page)
+        self.assertIn("View my work", page)
         self.assertNotIn("Current user:", page)
         self.assertNotIn('id="reset-user-results"', page)
         self.assertIn('id="flag-interesting"', page)

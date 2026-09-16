@@ -1,10 +1,12 @@
 const STORAGE_KEY = "bcg-picker-guest-review-v1";
 const MODE_KEY = "bcg-picker-review-mode-v1";
 const REVIEWER_KEY = "bcg-picker-reviewer-v1";
+const REVIEW_FILENAME_KEY = "bcg-picker-review-filename-v1";
 let mode = localStorage.getItem(MODE_KEY) === "guest" ? "guest" : "example";
 let exampleAnnotations = new Map();
 let guestAnnotations = new Map();
 let reviewerName = localStorage.getItem(REVIEWER_KEY) || "guest";
+let guestReviewFilename = localStorage.getItem(REVIEW_FILENAME_KEY) || "";
 let currentClick = null;
 let zoom = 1;
 let currentImageVariantIndex = 0;
@@ -28,6 +30,36 @@ const downloadButton = document.getElementById("download-results");
 const angularScale = document.getElementById("angular-scale");
 const angularScaleLabel = document.getElementById("angular-scale-label");
 const angularScaleBar = document.getElementById("angular-scale-bar");
+const clusterTitle = document.getElementById("cluster-title");
+const clusterJumpInput = document.getElementById("cluster-jump-input");
+
+function openClusterJump() {
+    if (!clusterTitle || !clusterJumpInput) return;
+    clusterTitle.hidden = true;
+    clusterJumpInput.hidden = false;
+    clusterJumpInput.value = String(currentCatalogIndex);
+    clusterJumpInput.focus();
+    clusterJumpInput.select();
+}
+
+function closeClusterJump() {
+    if (!clusterTitle || !clusterJumpInput) return;
+    clusterTitle.hidden = false;
+    clusterJumpInput.hidden = true;
+}
+
+function jumpToCluster() {
+    if (!clusterJumpInput) return;
+    const match = clusterJumpInput.value.trim().match(/^(?:cluster)?0*(\d+)$/i);
+    const targetIndex = match ? Number(match[1]) : NaN;
+    if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= catalogRows.length) {
+        setStatus("Enter a cluster number from 0 to " + String(catalogRows.length - 1) + ".");
+        clusterJumpInput.focus();
+        clusterJumpInput.select();
+        return;
+    }
+    window.location.href = pageUrl(targetIndex);
+}
 
 function isTrue(value) {
     return String(value).trim().toLowerCase() === "true";
@@ -53,6 +85,7 @@ function loadGuestAnnotations() {
 function persistGuestAnnotations() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...guestAnnotations.values()]));
     localStorage.setItem(REVIEWER_KEY, reviewerName);
+    localStorage.setItem(REVIEW_FILENAME_KEY, guestReviewFilename);
 }
 
 function activeAnnotations() {
@@ -144,7 +177,9 @@ function updateModeUi() {
         ? "Viewing taweewat example annotations. This review is read-only."
         : "Guest review: your annotations stay in this browser until you download them.";
     document.getElementById("view-example").classList.toggle("active", exampleMode);
-    document.getElementById("start-guest-review").classList.toggle("active", !exampleMode);
+    const guestReviewButton = document.getElementById("view-guest-review");
+    guestReviewButton.textContent = guestReviewFilename ? "View " + guestReviewFilename : "View my work";
+    guestReviewButton.classList.toggle("active", !exampleMode);
     ["save", "skip-unsure", "flag-interesting", "next-unannotated", "clear-guest-review"].forEach((id) => {
         const button = document.getElementById(id);
         if (button) button.disabled = exampleMode;
@@ -162,7 +197,7 @@ function setMode(nextMode) {
     window.history.replaceState({}, "", pageUrl(currentCatalogIndex));
     updateFilterButtons();
     localStorage.setItem(MODE_KEY, mode);
-    setStatus(nextMode === "guest" ? "Blank guest review started." : "Viewing taweewat example review.");
+    setStatus(nextMode === "guest" ? "Viewing your current review." : "Viewing taweewat example review.");
     updateModeUi();
 }
 
@@ -341,7 +376,7 @@ function downloadResults() {
     const lines = [headers.join(","), ...[...activeAnnotations().values()].map((row) => headers.map((header) => csvEscape(row[header])).join(","))];
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
-    link.download = mode === "example" ? "taweewat_results.csv" : "guest_results.csv";
+    link.download = mode === "example" ? "taweewat_results.csv" : (guestReviewFilename || "guest_results.csv");
     link.click();
     URL.revokeObjectURL(link.href);
 }
@@ -356,12 +391,16 @@ async function loadExample() {
 function wireEvents() {
     img?.addEventListener("load", () => { renderMarker(); renderAngularScale(); });
     img?.addEventListener("click", (event) => {
-        if (mode !== "guest") { setStatus("The taweewat example is read-only. Start a blank review to annotate."); return; }
+        if (mode !== "guest") { setStatus("The taweewat example is read-only. Select View my work to annotate."); return; }
         const rect = img.getBoundingClientRect();
         selectMarker((event.clientX - rect.left) * img.naturalWidth / rect.width, (event.clientY - rect.top) * img.naturalHeight / rect.height);
     });
+    clusterTitle?.addEventListener("click", openClusterJump);
+    clusterTitle?.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openClusterJump(); } });
+    clusterJumpInput?.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); jumpToCluster(); } if (event.key === "Escape") { closeClusterJump(); } });
+    clusterJumpInput?.addEventListener("blur", closeClusterJump);
     document.getElementById("view-example").onclick = () => setMode("example");
-    document.getElementById("start-guest-review").onclick = () => { guestAnnotations = new Map(); persistGuestAnnotations(); setMode("guest"); };
+    document.getElementById("view-guest-review").onclick = () => setMode("guest");
     document.getElementById("save")?.addEventListener("click", saveMarker);
     document.getElementById("skip-unsure")?.addEventListener("click", () => saveQuickStatus("skipped"));
     document.getElementById("flag-interesting")?.addEventListener("click", () => saveQuickStatus("flagged"));
@@ -373,10 +412,10 @@ function wireEvents() {
     document.getElementById("zoom-reset")?.addEventListener("click", () => { zoom = 1; wrapper.style.transform = "scale(1)"; renderMarker(); });
     ["all", "skipped", "flagged"].forEach((name) => document.getElementById(`filter-${name}`).onclick = () => setFilter(name));
     document.getElementById("download-results").onclick = downloadResults;
-    document.getElementById("clear-guest-review").onclick = () => { if (window.confirm("Clear this browser-only guest draft?")) { guestAnnotations = new Map(); persistGuestAnnotations(); setStatus("Local guest draft cleared."); showAnnotation(); updateProgress(); updateVisiblePosition(); } };
+    document.getElementById("clear-guest-review").onclick = () => { if (window.confirm("Clear this browser-only guest draft?")) { guestAnnotations = new Map(); guestReviewFilename = ""; persistGuestAnnotations(); setStatus("Local guest draft cleared."); updateModeUi(); } };
     document.getElementById("results-file").addEventListener("change", async (event) => {
         const file = event.target.files[0]; if (!file) return;
-        try { const rows = parseCsv(await file.text()); reviewerName = rows.find((row) => row.username)?.username || "guest"; guestAnnotations = annotationsFromRows(rows); persistGuestAnnotations(); setMode("guest"); setStatus(`Imported ${rows.length} annotations into this browser.`); } catch (error) { setStatus(error.message); } finally { event.target.value = ""; }
+        try { const rows = parseCsv(await file.text()); reviewerName = rows.find((row) => row.username)?.username || "guest"; guestAnnotations = annotationsFromRows(rows); guestReviewFilename = file.name; persistGuestAnnotations(); setMode("guest"); setStatus(`Imported ${rows.length} annotations into this browser.`); } catch (error) { setStatus(error.message); } finally { event.target.value = ""; }
     });
     window.addEventListener("wheel", (event) => { if (!wrapper?.contains(event.target)) return; event.preventDefault(); zoom = Math.max(0.5, Math.min(5, zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1))); wrapper.style.transform = `scale(${zoom})`; renderMarker(); }, { passive: false });
     document.addEventListener("keydown", (event) => { if (["input", "textarea"].includes(event.target.tagName.toLowerCase())) return; const key = event.key.toLowerCase(); if (key === "s") saveMarker(); if (["n", "w"].includes(key)) saveQuickStatus("skipped"); if (["e", "g"].includes(key)) saveQuickStatus("flagged"); if (key === "u") goToNextUnannotated(); if (key === "j") setImageVariant(currentImageVariantIndex - 1); if (key === "k") setImageVariant(currentImageVariantIndex + 1); if (event.key === "ArrowLeft") goToVisibleOffset(-1); if (event.key === "ArrowRight") goToVisibleOffset(1); });

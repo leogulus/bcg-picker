@@ -16,13 +16,9 @@ DEFAULT_CATALOG_FILE = os.environ.get(
     "BCG_PICKER_DEFAULT_CATALOG",
     os.path.join(DATA_DIR, "catalog.csv"),
 )
-DEFAULT_BOOTSTRAP_RESULTS_FILE = os.environ.get(
-    "BCG_PICKER_BOOTSTRAP_RESULTS_FILE",
+DEFAULT_EXAMPLE_RESULTS_FILE = os.environ.get(
+    "BCG_PICKER_EXAMPLE_RESULTS_FILE",
     os.path.join(DATA_DIR, "imports", "taweewat_results.csv"),
-)
-DEFAULT_BOOTSTRAP_USERNAME = os.environ.get(
-    "BCG_PICKER_BOOTSTRAP_USERNAME",
-    "taweewat",
 )
 UPLOADED_CATALOG_FILE = os.environ.get(
     "BCG_PICKER_UPLOADED_CATALOG",
@@ -127,35 +123,6 @@ def load_runtime_catalog(app):
 
 def get_current_username():
     return session.get("username")
-
-
-def bootstrap_default_results(app):
-    bootstrap_path = app.config.get("BOOTSTRAP_RESULTS_FILE", "")
-    bootstrap_username = app.config.get("BOOTSTRAP_USERNAME", "").strip()
-    if not bootstrap_path or not bootstrap_username:
-        return
-
-    if not os.path.exists(bootstrap_path):
-        return
-
-    if csv_store.results_file_exists(app.config["RESULTS_DIR"], bootstrap_username):
-        return
-
-    rows = csv_store.read_results_rows(bootstrap_path)
-    if not rows:
-        return
-
-    normalized_rows = csv_store.normalize_imported_results_rows(
-        rows,
-        fallback_username=bootstrap_username,
-    )
-    csv_store.import_results_rows(
-        app.config["RESULTS_DIR"],
-        app.config["IMPORTS_DIR"],
-        bootstrap_username,
-        normalized_rows,
-        replace=False,
-    )
 
 
 def get_catalog_filter_mode():
@@ -303,8 +270,7 @@ def enrich_galaxy(row):
 def create_app(test_config=None):
     app = Flask(__name__, static_folder="static", static_url_path="/static")
     app.config["DEFAULT_CATALOG_FILE"] = DEFAULT_CATALOG_FILE
-    app.config["BOOTSTRAP_RESULTS_FILE"] = DEFAULT_BOOTSTRAP_RESULTS_FILE
-    app.config["BOOTSTRAP_USERNAME"] = DEFAULT_BOOTSTRAP_USERNAME
+    app.config["EXAMPLE_RESULTS_FILE"] = DEFAULT_EXAMPLE_RESULTS_FILE
     app.config["UPLOADED_CATALOG_FILE"] = UPLOADED_CATALOG_FILE
     app.config["RESULTS_DIR"] = RESULTS_DIR
     app.config["IMPORTS_DIR"] = IMPORTS_DIR
@@ -317,22 +283,7 @@ def create_app(test_config=None):
         app.config["IMPORTS_DIR"],
         app.config["COMBINED_DIR"],
     )
-    bootstrap_default_results(app)
     set_catalog(app, load_runtime_catalog(app))
-
-    @app.before_request
-    def ensure_default_user():
-        if get_current_username():
-            return
-
-        bootstrap_username = current_app.config.get("BOOTSTRAP_USERNAME", "").strip()
-        if not bootstrap_username:
-            return
-
-        if bootstrap_username not in get_existing_usernames():
-            return
-
-        session["username"] = bootstrap_username
 
     @app.route("/set_user", methods=["POST"])
     def set_user():
@@ -437,7 +388,7 @@ def create_app(test_config=None):
 
     @app.route("/<int:index>")
     def index(index):
-        catalog = get_visible_catalog()
+        catalog = get_catalog()
         if not catalog:
             return render_template(
                 "index.html",
@@ -448,6 +399,7 @@ def create_app(test_config=None):
                 existing_users=get_existing_usernames(),
                 user_summary=build_user_summary(),
                 catalog_filter_mode=get_catalog_filter_mode(),
+                catalog_rows=get_catalog(),
             )
 
         if index < 0 or index >= len(catalog):
@@ -463,11 +415,12 @@ def create_app(test_config=None):
             existing_users=get_existing_usernames(),
             user_summary=build_user_summary(),
             catalog_filter_mode=get_catalog_filter_mode(),
+            catalog_rows=get_catalog(),
         )
 
     @app.route("/cluster/<cluster>")
     def cluster(cluster):
-        catalog = get_visible_catalog()
+        catalog = get_catalog()
         if not catalog:
             return render_template(
                 "index.html",
@@ -478,6 +431,7 @@ def create_app(test_config=None):
                 existing_users=get_existing_usernames(),
                 user_summary=build_user_summary(),
                 catalog_filter_mode=get_catalog_filter_mode(),
+                catalog_rows=get_catalog(),
             )
 
         catalog_maps = get_catalog_maps(catalog)
@@ -495,6 +449,7 @@ def create_app(test_config=None):
             existing_users=get_existing_usernames(),
             user_summary=build_user_summary(),
             catalog_filter_mode=get_catalog_filter_mode(),
+            catalog_rows=get_catalog(),
         )
 
     @app.route("/set_catalog_filter", methods=["POST"])
@@ -529,6 +484,19 @@ def create_app(test_config=None):
             "filter_mode": filter_mode,
             "total": len(catalog),
             "next_url": next_url,
+        })
+
+    @app.route("/example_results")
+    def example_results():
+        path = current_app.config["EXAMPLE_RESULTS_FILE"]
+        if not os.path.exists(path):
+            return jsonify({"status": "error", "message": "Example results file was not found"}), 404
+
+        rows = csv_store.read_results_rows(path)
+        return jsonify({
+            "status": "ok",
+            "username": next((row.get("username", "") for row in rows if row.get("username", "")), "taweewat"),
+            "annotations": rows,
         })
 
     @app.route("/images/<path:filename>")

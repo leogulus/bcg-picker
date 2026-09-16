@@ -1,251 +1,91 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>BCG Picker</title>
-
-    <link rel="stylesheet"
-          href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for("static", filename="style.css") }}">
 </head>
-
 <body>
-
 <div class="container">
-
-    <!-- LEFT: IMAGE -->
-    <div class="left-panel">
-        {% if galaxy %}
-        {% if galaxy.primary_image_variant %}
+    <main class="left-panel">
+        {% if galaxy and galaxy.primary_image_variant %}
         <div id="image-wrapper">
-            <img id="galaxy"
-                src="/images/{{ galaxy.primary_image_variant.path }}"
-                draggable="false">
+            <img id="galaxy" src="/images/{{ galaxy.primary_image_variant.path }}" draggable="false" alt="{{ galaxy.cluster }}">
             <div id="marker"></div>
         </div>
         {% else %}
-        <div id="empty-catalog-view">
-            No matching image files were found for this cluster on this machine.
-        </div>
+        <div id="empty-catalog-view">No matching image files were found for this cluster.</div>
         {% endif %}
-        {% else %}
-        <div id="empty-catalog-view">
-            No objects match this filter for the current user.
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- RIGHT: CONTROL PANEL -->
-    <div class="right-panel">
-        <div id="user-panel" class="right-panel-card">
-            <h3>Active User</h3>
-            <form action="{{ url_for('set_user') }}" method="post">
-                <input type="hidden" name="next_url" value="{{ request.path }}">
-                <label for="selected-username">Choose existing user</label>
-                <select id="selected-username" name="selected_username">
-                    <option value="">-- Select user --</option>
-                    {% for username in existing_users %}
-                    <option value="{{ username }}"
-                            {% if current_user == username %}selected{% endif %}>
-                        {{ username }}
-                    </option>
-                    {% endfor %}
-                </select>
-                <label for="username-input">Or create / switch to a new user</label>
-                <input
-                    id="username-input"
-                    type="text"
-                    name="username"
-                    placeholder="Enter new username"
-                    value="">
-                <button type="submit">Set User</button>
-            </form>
-            <div id="current-user-text">
-                {% if current_user %}
-                Current user: <b>{{ current_user }}</b>
-                {% else %}
-                Set a username before saving annotations.
-                {% endif %}
+    </main>
+    <aside class="right-panel">
+        <section class="right-panel-card guest-intro">
+            <h1>BCG Picker</h1>
+            <p id="review-mode-description">Loading the example review…</p>
+            <div class="guest-mode-actions">
+                <button id="view-example" type="button">View taweewat example</button>
+                <button id="start-guest-review" type="button">Start blank review</button>
+                <label class="file-button" for="results-file">Import my results CSV</label>
+                <input id="results-file" type="file" accept=".csv" hidden>
             </div>
-            {% if user_summary.current %}
-            <div id="current-user-summary"
-                 data-done="{{ user_summary.current.done }}"
-                 data-skipped="{{ user_summary.current.skipped }}"
-                 data-flagged="{{ user_summary.current.flagged }}"
-                 data-remaining="{{ user_summary.current.remaining }}">
-                Done: {{ user_summary.current.done }}<br>
-                Skipped: {{ user_summary.current.skipped }}<br>
-                Flagged: {{ user_summary.current.flagged }}<br>
-                Remaining: {{ user_summary.current.remaining }}
+            <div id="review-progress" class="review-progress" aria-live="polite">
+                <span>Marked: <b id="progress-marked">0</b></span>
+                <span>Unsure: <b id="progress-skipped">0</b></span>
+                <span>Flagged: <b id="progress-flagged">0</b></span>
+                <span>Remaining: <b id="progress-remaining">0</b></span>
             </div>
-            <button id="reset-user-results" class="danger-button" type="button">Reset Current User Results</button>
-            {% endif %}
-        </div>
-
+            <p id="guest-storage-note">Your guest work is saved only in this browser until you download it.</p>
+        </section>
         {% if galaxy %}
-        <div id="cluster-header">
-            <h2>{{ galaxy.cluster }}</h2>
-            <span id="status"></span>
-        </div>
-
-        <div id="cluster-info-panel" class="right-panel-card">
-            <div id="cluster-meta">
-                Galaxy {{ index+1 }} / {{ total }} <br>
-                z = {{ galaxy.redshift }}
-            </div>
-
-            <div id="annotation-state">
-                Saved status:
-                <span id="annotation-state-badge" class="annotation-state-badge annotation-state-none">Not saved</span>
-            </div>
-
-            <div id="info">
-                X: <span id="x" class="picked-value">-</span><br>
-                Y: <span id="y" class="picked-value">-</span><br>
-                RA: <span id="ra" class="picked-value">-</span><br>
-                Dec: <span id="dec" class="picked-value">-</span>
-            </div>
-
-            <div id="note-panel">
-                <label for="object-note">Notes / Comments</label>
-                <textarea id="object-note"
-                          rows="4"
-                          placeholder="Add comments about this object..."></textarea>
-            </div>
-        </div>
-
-        <div class="navigation">
-            {% if index > 0 %}
-            <a href="{{ url_for('index', index=index-1) }}">← Previous</a>
-            {% endif %}
-
-            <span>{{ index + 1 }} / {{ total }}</span>
-
-            {% if index < total-1 %}
-            <a href="{{ url_for('index', index=index+1) }}">Next →</a>
-            {% endif %}
-        </div>
-
+        <section id="cluster-info-panel" class="right-panel-card">
+            <div id="cluster-header"><h2>{{ galaxy.cluster }}</h2><span id="status" aria-live="polite"></span></div>
+            <div id="cluster-meta">Galaxy {{ index + 1 }} / {{ total }}<br>z = {{ galaxy.redshift }}</div>
+            <div id="annotation-state">Status: <span id="annotation-state-badge" class="annotation-state-badge annotation-state-none">Not marked</span></div>
+            <div id="info">X: <span id="x" class="picked-value">-</span><br>Y: <span id="y" class="picked-value">-</span><br>RA: <span id="ra" class="picked-value">-</span><br>Dec: <span id="dec" class="picked-value">-</span></div>
+            <div id="note-panel"><label for="object-note">Notes / Comments</label><textarea id="object-note" rows="4" placeholder="Add comments about this object…"></textarea></div>
+        </section>
+        <nav class="navigation" aria-label="Cluster navigation">
+            <button id="previous-cluster" type="button">← Previous</button>
+            <button id="next-cluster" type="button">Next →</button>
+        </nav>
         <div id="primary-actions">
-        <button id="save">Save</button>
-        <button id="skip-unsure">Unsure</button>
-        <button id="flag-interesting">Flag</button>
-        <button id="next-unannotated">Next unannotated</button>
+            <button id="save" type="button">Save marker</button>
+            <button id="skip-unsure" type="button">Unsure</button>
+            <button id="flag-interesting" type="button">Flag</button>
+            <button id="next-unannotated" type="button">Next unannotated</button>
         </div>
-
-        <div id="image-variant-panel" class="right-panel-card">
-            <h3>Image View</h3>
-            <div id="current-image-variant">
-                {% if galaxy.primary_image_variant %}
-                {{ galaxy.primary_image_variant.label }}
-                {% else %}
-                No image views available
-                {% endif %}
-            </div>
-            {% if galaxy.primary_image_variant %}
-            <div id="image-variant-actions">
-                <button id="previous-image-variant" type="button">Previous Image (J)</button>
-                <button id="next-image-variant" type="button">Next Image (K)</button>
-            </div>
-            {% endif %}
-        </div>
-
-        <button id="zoom-reset">Zoom 1</button>
-
-        <div id="shortcuts" class="right-panel-card">
-            <h3>Controls</h3>
-
-            <ul>
-                <li><b>Click image</b> → Create marker</li>
-                <li><b>S</b> → Save Coordinates to file</li>
-                <li><b>N / W</b> → Skip/Unsure</li>
-                <li><b>E / G</b> → Flag Interesting</li>
-                <li><b>U</b> → Next unannotated cluster</li>
-                <li><b>J / D</b> → Previous image view</li>
-                <li><b>K / F</b> → Next image view</li>
-                <li><b>← / →</b> → Previous / Next cluster</li>
-                <li><b>1</b> → Reset Zoom</li>
-                <li><b>Mouse wheel</b> → Zoom in/out</li>
-            </ul>
-        </div>
-        {% else %}
-        <h2>No objects in this view</h2>
-        <div id="empty-filter-help" class="right-panel-card">
-            Switch back to <b>All</b>, or choose a different user to review their skipped or flagged objects.
-        </div>
+        <section id="image-variant-panel" class="right-panel-card">
+            <h3>Image View</h3><div id="current-image-variant">{{ galaxy.primary_image_variant.label }}</div>
+            <div id="image-variant-actions"><button id="previous-image-variant" type="button">Previous image (J)</button><button id="next-image-variant" type="button">Next image (K)</button></div>
+        </section>
+        <a id="ls-imager" class="external-image-link" href="https://www.legacysurvey.org/viewer/catalog?ra={{ galaxy.ra|urlencode }}&amp;dec={{ galaxy.dec|urlencode }}" target="_blank" rel="noopener noreferrer">LS Imager</a>
+        <button id="zoom-reset" type="button">Reset zoom</button>
         {% endif %}
-
-        <button id="download-results">Download Results CSV</button>
-
-        <div id="catalog-filter-panel" class="right-panel-card">
+        <section id="catalog-filter-panel" class="right-panel-card">
             <h3>Catalog View</h3>
-            <div id="catalog-filter-buttons">
-                <button id="filter-all"
-                        class="catalog-filter-button{% if catalog_filter_mode == 'all' %} active{% endif %}"
-                        type="button">
-                    All
-                </button>
-                <button id="filter-skipped"
-                        class="catalog-filter-button{% if catalog_filter_mode == 'skipped' %} active{% endif %}"
-                        type="button">
-                    Skip / Unsure
-                </button>
-                <button id="filter-flagged"
-                        class="catalog-filter-button{% if catalog_filter_mode == 'flagged' %} active{% endif %}"
-                        type="button">
-                    Flagged
-                </button>
-            </div>
-            {% if current_user %}
-            <div id="catalog-export-buttons">
-                <button id="download-skipped-catalog" type="button">Download Skip / Unsure Catalog</button>
-                <button id="download-flagged-catalog" type="button">Download Flagged Catalog</button>
-            </div>
-            {% endif %}
-        </div>
-
-        <div id="upload" class="right-panel-card">
-            <h3>Load Custom Catalog</h3>
-            <input type="file" id="catalog-file" accept=".csv">
-            <button id="upload-btn">Upload</button>
-            <div id="upload-status"></div>
-        </div>
-
-        <button id="reset-catalog">Use Full Catalog</button>
-
-                <div id="admin-panel" class="right-panel-card">
-            <h3>Admin Tools</h3>
-            <button id="download-all-results">Download All Results CSV</button>
-            <a id="review-all-results"
-               class="admin-link-button"
-               href="{{ url_for('admin_review') }}">Review All Results</a>
-            <div id="import-results-panel">
-                <label for="results-file">Import Reviewer Results CSV</label>
-                <input type="file" id="results-file" accept=".csv">
-                <button id="import-results-btn" type="button">Import Results CSV</button>
-                <div id="import-results-status"></div>
-            </div>
-        </div>
-
-    </div>
-
+            <div id="catalog-filter-buttons"><button id="filter-all" type="button" class="catalog-filter-button active">All</button><button id="filter-skipped" type="button" class="catalog-filter-button">Skip / Unsure</button><button id="filter-flagged" type="button" class="catalog-filter-button">Flagged</button></div>
+            <p id="catalog-filter-summary" aria-live="polite">All targets: 0 / 0</p>
+        </section>
+        <section class="right-panel-card guest-actions">
+            <button id="download-results" type="button">Download results CSV</button>
+            <button id="clear-guest-review" class="danger-button" type="button">Clear my local draft</button>
+        </section>
+        <section id="shortcuts" class="right-panel-card"><h3>Controls</h3><ul><li><b>Click image</b> → Place marker in guest mode</li><li><b>S</b> → Save and go to next remaining</li><li><b>N / W</b> → Skip and go to next remaining</li><li><b>E / G</b> → Flag and go to next remaining</li><li><b>U</b> → Next unannotated</li><li><b>J / K</b> → Change image view</li><li><b>Mouse wheel</b> → Zoom</li></ul></section>
+    </aside>
 </div>
-
 <script>
 const cluster = {{ (galaxy.cluster if galaxy else none)|tojson }};
 const image = {{ (galaxy.image if galaxy else none)|tojson }};
 const ra0 = {{ (galaxy.ra if galaxy else none)|tojson }};
 const dec0 = {{ (galaxy.dec if galaxy else none)|tojson }};
 const pixscale = {{ (galaxy.pixscale if galaxy else none)|tojson }};
-const hasGalaxy = {{ (galaxy is not none)|tojson }};
-const currentIndex = {{ index }};
-const total = {{ total }};
-const currentUser = {{ (current_user or '')|tojson }};
-const currentFilterMode = {{ catalog_filter_mode|tojson }};
+const currentCatalogIndex = {{ index }};
+const catalogRows = {{ catalog_rows|tojson }};
 const imageVariants = {{ (galaxy.image_variants if galaxy else [])|tojson }};
+const exampleResultsUrl = {{ url_for("example_results")|tojson }};
+const assetPrefix = "/";
+const pageUrl = (index) => "/" + index;
 </script>
-
-<script src="{{ url_for('static', filename='script.js') }}"></script>
-
+<script src="{{ url_for("static", filename="script.js") }}"></script>
 </body>
-
 </html>

@@ -225,6 +225,17 @@ class BCGPickerAppTests(unittest.TestCase):
         response = self.client.get("/99")
         self.assertEqual(response.status_code, 404)
 
+    def test_page_includes_legacy_survey_link_at_image_center(self):
+        response = self.client.get("/0")
+
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
+        self.assertIn('id="ls-imager"', page)
+        self.assertIn(
+            'https://www.legacysurvey.org/viewer/catalog?ra=3.1&amp;dec=-32.9',
+            page,
+        )
+
     def test_save_requires_user(self):
         with self.client.session_transaction() as session:
             session.pop("username", None)
@@ -274,7 +285,7 @@ class BCGPickerAppTests(unittest.TestCase):
         with self.client.session_transaction() as session:
             self.assertEqual(session["username"], "tester")
 
-    def test_create_app_bootstraps_default_results_file(self):
+    def test_example_results_are_served_without_creating_server_results(self):
         csv_store.write_results_rows(self.bootstrap_results_path, [{
             "username": "taweewat",
             "cluster": "Cluster0000",
@@ -285,32 +296,27 @@ class BCGPickerAppTests(unittest.TestCase):
             "dec": "4.0",
             "skipped": "False",
             "flagged": "False",
-            "note": "bootstrap row",
+            "note": "example row",
             "updated_at": "2026-08-07T00:00:00+00:00",
         }])
 
-        bootstrapped_app = app_module.create_app({
+        example_app = app_module.create_app({
             "TESTING": True,
             "DEFAULT_CATALOG_FILE": self.catalog_path,
-            "BOOTSTRAP_RESULTS_FILE": self.bootstrap_results_path,
-            "BOOTSTRAP_USERNAME": "taweewat",
+            "EXAMPLE_RESULTS_FILE": self.bootstrap_results_path,
             "UPLOADED_CATALOG_FILE": self.upload_path,
             "RESULTS_DIR": self.results_dir,
             "IMPORTS_DIR": self.imports_dir,
             "COMBINED_DIR": self.combined_dir,
             "SECRET_KEY": "test-secret",
         })
+        response = example_app.test_client().get("/example_results")
 
-        results_path = os.path.join(self.results_dir, "taweewat_results.csv")
-        self.assertTrue(os.path.exists(results_path))
-        rows = csv_store.read_results_rows(results_path)
-        self.assertEqual(rows[0]["username"], "taweewat")
-        self.assertEqual(rows[0]["note"], "bootstrap row")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["annotations"][0]["note"], "example row")
+        self.assertFalse(os.path.exists(os.path.join(self.results_dir, "taweewat_results.csv")))
 
-        imported_path = os.path.join(self.imports_dir, "taweewat_results.csv")
-        self.assertTrue(os.path.exists(imported_path))
-
-    def test_first_request_auto_selects_bootstrap_user(self):
+    def test_first_request_does_not_select_a_server_user(self):
         csv_store.write_results_rows(
             os.path.join(self.results_dir, "taweewat_results.csv"),
             [{
@@ -334,7 +340,7 @@ class BCGPickerAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         with self.client.session_transaction() as session:
-            self.assertEqual(session["username"], "taweewat")
+            self.assertNotIn("username", session)
 
     def test_sanitize_username_builds_safe_results_filename(self):
         self.assertEqual(
@@ -396,8 +402,8 @@ class BCGPickerAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="previous-image-variant"', page)
         self.assertIn('id="next-image-variant"', page)
-        self.assertIn("J / D", page)
-        self.assertIn("K / F", page)
+        self.assertIn("Previous image (J)", page)
+        self.assertIn("Next image (K)", page)
         self.assertIn("/images/with_nonotion/cluster000_nonotation.jpg", page)
         self.assertIn("with_notation/cluster000_withnotation.jpg", page)
         self.assertIn("member/cluster000_member.jpg", page)
@@ -426,8 +432,7 @@ class BCGPickerAppTests(unittest.TestCase):
         page = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("No matching image files were found for this cluster on this machine.", page)
-        self.assertIn("No image views available", page)
+        self.assertIn("No matching image files were found for this cluster.", page)
 
     def test_save_creates_sanitized_results_file(self):
         self.client.post(
@@ -554,7 +559,8 @@ class BCGPickerAppTests(unittest.TestCase):
         page = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('option value="John Smith"', page)
+        self.assertNotIn('option value="John Smith"', page)
+        self.assertIn("Start blank review", page)
 
     def test_import_results_creates_results_file(self):
         results_csv = io.BytesIO(
@@ -800,8 +806,8 @@ class BCGPickerAppTests(unittest.TestCase):
 
         self.assertEqual(page_response.status_code, 200)
         self.assertIn("Cluster0001", page)
-        self.assertIn("Galaxy 1 / 1", page)
-        self.assertNotIn("Cluster0000</h2>", page)
+        self.assertIn("Galaxy 1 / 2", page)
+        self.assertIn("Cluster0000</h2>", page)
 
     def test_set_catalog_filter_shows_flagged_only(self):
         self.client.post(
@@ -832,7 +838,7 @@ class BCGPickerAppTests(unittest.TestCase):
 
         self.assertEqual(page_response.status_code, 200)
         self.assertIn("Cluster0000", page)
-        self.assertIn("Galaxy 1 / 1", page)
+        self.assertIn("Galaxy 1 / 2", page)
         self.assertNotIn("Cluster0001</h2>", page)
 
     def test_set_catalog_filter_requires_active_user_for_filtered_views(self):
@@ -860,8 +866,8 @@ class BCGPickerAppTests(unittest.TestCase):
         page = page_response.get_data(as_text=True)
 
         self.assertEqual(page_response.status_code, 200)
-        self.assertIn("No objects in this view", page)
-        self.assertIn("No objects match this filter", page)
+        self.assertIn("Catalog View", page)
+        self.assertIn("Start blank review", page)
 
     def test_download_skipped_catalog_subset_returns_catalog_csv(self):
         self.client.post(
@@ -956,11 +962,10 @@ class BCGPickerAppTests(unittest.TestCase):
         page = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Current user: <b>tester</b>", page)
-        self.assertIn("Done: 1", page)
-        self.assertIn("Flagged: 0", page)
-        self.assertIn("Remaining: 1", page)
-        self.assertIn('id="reset-user-results"', page)
+        self.assertIn("View taweewat example", page)
+        self.assertIn("Start blank review", page)
+        self.assertNotIn("Current user:", page)
+        self.assertNotIn('id="reset-user-results"', page)
         self.assertIn('id="flag-interesting"', page)
 
     def test_index_lists_result_backed_users_in_picker_only(self):
@@ -995,18 +1000,17 @@ class BCGPickerAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('option value="tester"', page)
-        self.assertIn('option value="second-user"', page)
-        self.assertNotIn("User Progress", page)
-        self.assertNotIn("second-user —", page)
+        self.assertNotIn('option value="second-user"', page)
+        self.assertIn("Import my results CSV", page)
 
     def test_index_shows_admin_export_button(self):
         response = self.client.get("/0")
         page = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Admin Tools", page)
-        self.assertIn('id="download-all-results"', page)
-        self.assertIn("Review All Results", page)
+        self.assertNotIn("Admin Tools", page)
+        self.assertNotIn('id="download-all-results"', page)
+        self.assertNotIn("Review All Results", page)
 
     def test_download_all_results_returns_combined_csv(self):
         self.client.post(

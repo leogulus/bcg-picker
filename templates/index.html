@@ -13,6 +13,7 @@
         <div id="image-wrapper">
             <img id="galaxy" src="/images/{{ galaxy.primary_image_variant.path }}" draggable="false" alt="{{ galaxy.cluster }}">
             <div id="marker"></div>
+            <div id="angular-scale" aria-label="Angular scale"><span id="angular-scale-label"></span><span id="angular-scale-bar"></span></div>
         </div>
         {% else %}
         <div id="empty-catalog-view">No matching image files were found for this cluster.</div>

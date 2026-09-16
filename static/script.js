@@ -25,6 +25,9 @@ const decValue = document.getElementById("dec");
 const positionText = document.getElementById("cluster-position");
 const catalogFilterSummary = document.getElementById("catalog-filter-summary");
 const downloadButton = document.getElementById("download-results");
+const angularScale = document.getElementById("angular-scale");
+const angularScaleLabel = document.getElementById("angular-scale-label");
+const angularScaleBar = document.getElementById("angular-scale-bar");
 
 function isTrue(value) {
     return String(value).trim().toLowerCase() === "true";
@@ -99,10 +102,30 @@ function renderMarker() {
     marker.style.display = "block";
 }
 
+function formatAngularScale(arcseconds) {
+    if (arcseconds >= 60 && arcseconds % 60 === 0) return String(arcseconds / 60) + "′";
+    return String(arcseconds) + "″";
+}
+
+function renderAngularScale() {
+    const scaleArcsecPerPixel = Number(pixscale);
+    if (!img || !angularScale || !angularScaleLabel || !angularScaleBar || !img.naturalWidth || !Number.isFinite(scaleArcsecPerPixel) || scaleArcsecPerPixel <= 0) {
+        if (angularScale) angularScale.hidden = true;
+        return;
+    }
+    const targetArcseconds = img.naturalWidth * scaleArcsecPerPixel * 0.18;
+    const candidates = [1, 2, 5, 10, 20, 30, 60, 120, 300, 600];
+    const arcseconds = candidates.reduce((best, candidate) => candidate <= targetArcseconds ? candidate : best, candidates[0]);
+    angularScaleLabel.textContent = formatAngularScale(arcseconds);
+    angularScaleBar.style.width = String((arcseconds / scaleArcsecPerPixel / img.naturalWidth) * 100) + "%";
+    angularScale.hidden = false;
+}
+
 function showAnnotation() {
     const annotation = annotationForCurrentCluster();
     currentClick = annotation && !annotation.skipped && !annotation.flagged && annotation.x !== "" ? annotation : null;
     renderMarker();
+    renderAngularScale();
     updateCoordinates(currentClick);
     if (noteInput) {
         noteInput.value = annotation?.note || "";
@@ -331,7 +354,7 @@ async function loadExample() {
 }
 
 function wireEvents() {
-    img?.addEventListener("load", renderMarker);
+    img?.addEventListener("load", () => { renderMarker(); renderAngularScale(); });
     img?.addEventListener("click", (event) => {
         if (mode !== "guest") { setStatus("The taweewat example is read-only. Start a blank review to annotate."); return; }
         const rect = img.getBoundingClientRect();

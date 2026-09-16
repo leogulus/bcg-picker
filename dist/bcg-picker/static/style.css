@@ -275,6 +275,37 @@ button:active,
     transform-origin: center center;
 }
 
+#angular-scale {
+    position: absolute;
+    left: 20px;
+    bottom: 20px;
+    display: grid;
+    gap: 4px;
+    width: 100%;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+    text-shadow: 0 1px 2px #000, 0 0 4px #000;
+    z-index: 2;
+}
+
+#angular-scale[hidden] {
+    display: none;
+}
+
+#angular-scale-bar {
+    display: block;
+    min-width: 28px;
+    height: 4px;
+    border-left: 2px solid #fff;
+    border-right: 2px solid #fff;
+    border-bottom: 2px solid #fff;
+    box-sizing: border-box;
+    filter: drop-shadow(0 1px 1px #000);
+}
+
 .right-panel-card {
     padding: 12px;
     background: rgba(255, 255, 255, 0.92);
